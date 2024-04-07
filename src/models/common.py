@@ -131,8 +131,8 @@ class AlldataEmbeddingLayer(torch.nn.Module):
 class BatchTransform:
     def __init__(self, batch_type="ccp"):
         self.batch_type = batch_type
-        self.feature_num = (len(using_feature_ids),)
-        self.single_feature_len = (3,)
+        self.feature_num = len(using_feature_ids)
+        self.single_feature_len = 3
 
     def __call__(self, batch):
         if self.batch_type == "in":
