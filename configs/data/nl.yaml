@@ -1,0 +1,7 @@
+_target_: src.tools.dataset.ExpressLightningDataModule
+batch_size: 8000
+num_workers: 8
+debug: False
+train_data_path: "../data/AliExpress_NL/train.hdf5"
+test_data_path: "../data/AliExpress_NL/test.hdf5"
+batch_type: "nl"

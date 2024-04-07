@@ -1,0 +1,5 @@
+datamodule:
+  _target_: src.tools.dataset.CCPLightningDataModule
+  batch_size: 8000
+  num_workers: 0
+  debug: false

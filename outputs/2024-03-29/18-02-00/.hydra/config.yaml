@@ -1,0 +1,13 @@
+datamodule:
+  _target_: src.tools.dataset.CCPLightningDataModule
+  batch_size: 8000
+  num_workers: 0
+  debug: false
+model:
+  optimizer:
+    _target_: torch.optim.Adam
+    lr: 0.001
+    weight_decay: 1.0e-06
+  tower:
+    tower_mlp_dims: 128-64-32
+    dropout_tower: 0.1-0.3-0.3

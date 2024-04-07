@@ -1,0 +1,12 @@
+datamodule:
+  _target_: src.tools.dataset.CCPLightningDataModule
+  batch_size: 8000
+  num_workers: 8
+  debug: false
+module:
+  _target_: src.models.test_model.ESMMLitModel
+  loss:
+    _target_: src.models.pattern.Loss_ESMM
+  lr: 0.001
+  weight_decay: 1.0e-06
+  batch_type: ali-ccp
