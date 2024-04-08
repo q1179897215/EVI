@@ -32,9 +32,7 @@ class XDataset(Dataset):
         df = df.astype(int)
         self.feature_names = df.columns[2:]
         self.data = df.values
-        print(
-            f"load data from {self.datafile} finished, there is {len(self.data)} samples"
-        )
+        print(f"load data from {self.datafile} finished, there is {len(self.data)} samples")
 
     def __len__(
         self,
