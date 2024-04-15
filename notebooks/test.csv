@@ -1,0 +1,9 @@
+Name,test/ctcvr_auc,test/ctr_auc,test/cvr_auc,Tags
+devout-field-56,0.85930109,0.714408517,0.796105504,"fr, src.models.common.Basic_Loss, src.models.descm.DESCM_Embedding"
+polished-dragon-55,0.84377563,0.714787006,0.778153658,"fr, src.models.common.Basic_Loss, src.models.descm.ESCM"
+hopeful-brook-23,0.83920908,0.714049041,0.737012863,"fr, src.models.common.Entire_Space_Basic_Loss, src.models.descm.DESCM_Embedding"
+stoic-plasma-22,0.860953689,0.687378168,0.791931391,"fr, src.models.common.DR_Loss, src.models.descm.DESCM_Embedding"
+fresh-firefly-21,0.863428712,0.683885157,0.791968882,"fr, src.models.common.IPW_Loss, src.models.descm.DESCM_Embedding"
+curious-brook-20,0.817243636,0.715324759,0.68806994,"fr, src.models.common.Entire_Space_Basic_Loss, src.models.descm.ESCM"
+sparkling-pine-19,0.868745387,0.68530345,0.792701721,"fr, src.models.common.DR_Loss, src.models.descm.ESCM"
+woven-flower-18,0.870665312,0.681675673,0.79185617,"fr, src.models.common.IPW_Loss, src.models.descm.ESCM"

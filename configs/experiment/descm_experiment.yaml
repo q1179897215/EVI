@@ -5,15 +5,15 @@
 
 defaults:
   - override /data: ccp
-  - override /model: esmm_model
-  - override /callbacks: esmm_callbacks
+  - override /model: descm_model
+  - override /callbacks: multi_task_callbacks
   - override /trainer: gpu
   - override /logger: wandb
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
-tags: ["mnist", "simple_dense_net"]
+tags: ["${data.batch_type}", "${model.model._target_}", "${model.loss._target_}"]
 
 seed: 2020
 
@@ -23,7 +23,9 @@ trainer:
 
 logger:
   wandb:
+    # name: 
     tags: ${tags}
-    group: "esmm_lr_expriment"
+    project: "CVR Prediction test"
+    group: ${data.batch_type}
   aim:
-    experiment: "esmm"
+    experiment: "descm"

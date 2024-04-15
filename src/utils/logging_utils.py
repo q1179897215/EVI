@@ -31,6 +31,7 @@ def log_hyperparameters(object_dict: Dict[str, Any]) -> None:
         return
 
     hparams["model"] = cfg["model"]
+    print(hparams["model"])
 
     # save number of model parameters
     hparams["model/params/total"] = sum(p.numel() for p in model.parameters())

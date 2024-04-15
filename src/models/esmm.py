@@ -9,7 +9,6 @@ from torch import nn
 from torchmetrics.classification import AUROC, Accuracy, BinaryAUROC
 
 from src.models.common import BatchTransform, MultiLayerPerceptron
-from tools.utils import LitModelFactory, MultiTaskLitModel, MultiTaskModelFactory
 
 
 class ESMM(nn.Module):
@@ -181,6 +180,3 @@ class Loss_MMoE(nn.Module):
         return loss_ctr + loss_cvr
 
 
-class MMoELitModelFactory(LitModelFactory):
-    def get_lit_model(self, config):
-        return MultiTaskLitModel(config, MMoEModel(config), Loss_MMoE(config))

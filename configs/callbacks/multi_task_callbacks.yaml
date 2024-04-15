@@ -1,0 +1,2 @@
+multi_task_callback:
+  _target_: src.models.common.MultiTaskCallback

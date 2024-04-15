@@ -13,7 +13,7 @@ defaults:
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
-tags: ["mnist", "simple_dense_net"]
+tags: ["deconfounder", "simple_dense_net"]
 
 seed: 2020
 
@@ -23,7 +23,9 @@ trainer:
 
 logger:
   wandb:
+
     tags: ${tags}
+    project: "CVR Prediction Hydra"
     group: "esmm_lr_expriment"
   aim:
     experiment: "esmm"

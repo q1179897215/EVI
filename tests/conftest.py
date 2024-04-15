@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 import rootutils
+rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True, cwd=True, dotenv=True)
 from hydra import compose, initialize
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, open_dict
@@ -28,7 +29,7 @@ def cfg_train_global() -> DictConfig:
             cfg.trainer.accelerator = "cpu"
             cfg.trainer.devices = 1
             cfg.data.num_workers = 0
-            cfg.data.pin_memory = False
+            # cfg.data.pin_memory = False
             cfg.extras.print_config = False
             cfg.extras.enforce_tags = False
             cfg.logger = None

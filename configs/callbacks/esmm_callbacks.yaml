@@ -1,2 +1,0 @@
-esmm_callback:
-  _target_: src.models.esmm.ESMMCallback
