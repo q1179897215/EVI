@@ -246,12 +246,15 @@ class MultiTaskLitModel_DA(pl.LightningModule):
         indices = torch.multinomial(source_sampling_weight, len(click[click==0]), replacement=True)
         oversampled_source_representations = source_representations[indices]
         da_loss = self.da_loss(oversampled_source_representations, target_representations)
+        domain_acc = self.da_loss.domain_discriminator_accuracy
         
         classification_loss = self.loss(click_pred, conversion_pred, click_conversion_pred, click, conversion, p_imp=imp_pred)
         loss = classification_loss + da_loss
         self.log("train/da_loss", da_loss, on_epoch=True, on_step=True)
         self.log("train/classification_loss", classification_loss, on_epoch=True, on_step=True)
+        self.log("train/domain_acc", domain_acc, on_epoch=True, on_step=True)
         self.log("train/loss", loss, on_epoch=True, on_step=True)
+        
         return loss
 
     def validation_step(self, batch, batch_idx):

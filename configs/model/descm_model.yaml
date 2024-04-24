@@ -19,10 +19,11 @@ model:
   expert_dropout: [0.3]
   tower_dims: [128, 64, 32]
   tower_dropout: [0.1, 0.3, 0.3]
+  A_embed_output_dim: 256
 
 
 loss:
-  _target_: src.models.common.Basic_Loss
+  _target_: src.models.common.IPW_Loss
   ctr_loss_proportion: 1
   cvr_loss_proportion: 1
   ctcvr_loss_proportion: 0.1
