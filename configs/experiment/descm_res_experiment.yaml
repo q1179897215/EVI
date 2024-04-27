@@ -13,7 +13,7 @@ defaults:
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 # "'${model.model.A_embed_output_dim}'"
-tags: ["${data.batch_type}","${model.model._target_}","${model.loss._target_}","${model._target_}", "'${model.loss.trade_off_ctr_loss_0}'", "${trainer.max_epochs}"]
+tags: ["${data.batch_type}","${model.model._target_}","${model.loss._target_}","${model._target_}", "epoch:'${model.loss.trade_off_ctr_loss_0}'", "'${trainer.max_epochs}'"]
 
 seed: 2020
 trainer:
