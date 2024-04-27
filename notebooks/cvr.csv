@@ -1,4 +1,6 @@
 methods,ccp,es,fr,nl,us
-DESCM_Embedding_DA_1_1,0.553,0.65,0.617,0.59,0.647
-DESCM_Embedding_DA_1_1_Base,0.673,0.805,0.802,0.768,0.798
-DESCM_Embedding_DA_2_1,0.652,0.746,0.765,0.718,0.732
+Basic_Loss_Res_1,0.667,,,,
+DESCM_Embedding,0.675,0.808,0.797,0.76,0.804
+DESCM_Embedding_Res_Simple,0.676,0.819,0.81,0.782,0.815
+ESCM,0.671,0.789,0.778,0.725,0.769
+IPW_Loss,0.664,0.794,0.792,0.75,0.787

@@ -7,8 +7,10 @@ import torch
 from lightning import Callback, LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig
+import sys
+# sys.path.append('/media/user/data1/fk/recom/CVR_Prediction_Hydra/src')
 
-rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True, cwd=True)
+rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True, cwd=True, dotenv=True)
 # ------------------------------------------------------------------------------------ #
 # the setup_root above is equivalent to:
 # - adding project root dir to PYTHONPATH

@@ -1,4 +1,4 @@
-_target_: src.models.common.MultiTaskLitModel
+_target_: src.models.descm_res.MultiTaskLitModel_Res
 
 # To avoiding copying of loss and metric names, during hydra initialization
 # there is custom resolver which replaces __loss__ to loss.__class__.__name__
@@ -8,7 +8,7 @@ _target_: src.models.common.MultiTaskLitModel
 # grammar problems with hydra config parser.
 
 model:
-  _target_: src.models.descm.DESCM_Embedding
+  _target_: src.models.descm_res.DESCM_Embedding_Res_Simple
   embedding_layer:
     _target_: src.models.common.AlldataEmbeddingLayer
     batch_type: ${data.batch_type}
@@ -23,7 +23,7 @@ model:
 
 
 loss:
-  _target_: src.models.common.Impression_CTR_IPW_Loss
+  _target_: src.models.descm_res.Basic_Loss_Res_Ratio
   ctr_loss_proportion: 1
   cvr_loss_proportion: 1
   ctcvr_loss_proportion: 0.1
@@ -33,6 +33,9 @@ lr: 0.001
 weight_decay: 1.0e-6
 
 batch_type: ${data.batch_type}
+
+
+
 # embedding:
 
 #     embedding_size = 5,

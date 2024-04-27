@@ -5,7 +5,7 @@
 
 defaults:
   - override /data: ccp
-  - override /model: descm_model
+  - override /model: descm_res_model
   - override /callbacks: multi_task_callbacks
   - override /trainer: gpu
   - override /logger: wandb
@@ -13,10 +13,9 @@ defaults:
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 # "'${model.model.A_embed_output_dim}'"
-tags: ["${data.batch_type}", "${model.model._target_}", "${model.loss._target_}","${model._target_}","clip_ips_0.05"]
+tags: ["${data.batch_type}","${model.model._target_}","${model.loss._target_}","${model._target_}", "'${model.loss.trade_off_ctr_loss_0}'"]
 
 seed: 2020
-
 trainer:
   min_epochs: 1
   max_epochs: 1

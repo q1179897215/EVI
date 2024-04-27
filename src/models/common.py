@@ -7,8 +7,6 @@ from lightning.pytorch.callbacks import Callback, EarlyStopping, ModelCheckpoint
 from omegaconf import DictConfig
 from torch import nn
 from torchmetrics.classification import AUROC, Accuracy, BinaryAUROC # type: ignore
-from tllib.modules.domain_discriminator import DomainDiscriminator
-from tllib.alignment.dann import DomainAdversarialLoss
 import numpy as np
 import torch
 import torch.nn as nn
@@ -218,64 +216,6 @@ class MultiTaskLitModel(pl.LightningModule):
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
-class MultiTaskLitModel_DA(pl.LightningModule):
-    def __init__(self, model, loss, lr, weight_decay, batch_type):
-        super().__init__()
-        self.save_hyperparameters(ignore=['model'])
-        self.model = model
-        self.loss = loss
-        self.lr = lr
-        self.weight_decay = weight_decay
-        self.ctr_auc = BinaryAUROC()
-        self.cvr_auc = BinaryAUROC()
-        self.ctcvr_auc = BinaryAUROC()
-        self.batch_transform = BatchTransform(batch_type)
-        self.da_loss = DomainAdversarialLoss(DomainDiscriminator(in_feature=model.task_feature_dim, hidden_size=64))
-
-
-    def training_step(self, batch, batch_idx):
-        click, conversion, features = self.batch_transform(batch)
-        click_pred, conversion_pred, click_conversion_pred, imp_pred, representations = self.model(features)
-        conversion_pred_filter = conversion_pred[click == 1]
-        conversion_filter = conversion[click == 1]
-        
-        # oversampling and caculate da loss
-        source_representations = representations[click==1]
-        target_representations = representations[click==0]
-        source_sampling_weight = torch.ones(len(source_representations))
-        indices = torch.multinomial(source_sampling_weight, len(click[click==0]), replacement=True)
-        oversampled_source_representations = source_representations[indices]
-        da_loss = self.da_loss(oversampled_source_representations, target_representations)
-        domain_acc = self.da_loss.domain_discriminator_accuracy
-        
-        classification_loss = self.loss(click_pred, conversion_pred, click_conversion_pred, click, conversion, p_imp=imp_pred)
-        loss = classification_loss + da_loss
-        self.log("train/da_loss", da_loss, on_epoch=True, on_step=True)
-        self.log("train/classification_loss", classification_loss, on_epoch=True, on_step=True)
-        self.log("train/domain_acc", domain_acc, on_epoch=True, on_step=True)
-        self.log("train/loss", loss, on_epoch=True, on_step=True)
-        
-        return loss
-
-    def validation_step(self, batch, batch_idx):
-        click, conversion, features = self.batch_transform(batch)
-        click_pred, conversion_pred, click_conversion_pred, imp_pred, task_feature = self.model(features)
-        # filter the conversion_pred where click is 0
-        val_loss = self.loss(click_pred, conversion_pred, click_conversion_pred, click, conversion, p_imp=imp_pred)
-
-        self.log("val/loss", val_loss, on_epoch=True, on_step=True)
-
-    def test_step(self, batch, batch_idx):
-        click, conversion, features = self.batch_transform(batch)
-        click_pred, conversion_pred, click_conversion_pred, imp_pred, task_feature = self.model(features)
-        conversion_pred_filter = conversion_pred[click == 1]
-        conversion_filter = conversion[click == 1]
-        self.ctr_auc.update(click_pred, click)
-        self.cvr_auc.update(conversion_pred_filter, conversion_filter)
-        self.ctcvr_auc.update(click_conversion_pred, click * conversion)
-
-    def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
 
 class BasicMultiTaskLoss():
     def __init__(self, 
@@ -293,6 +233,117 @@ class BasicMultiTaskLoss():
     def __call__(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, **kwargs):
         loss_ctr, loss_cvr, loss_ctcvr = self.caculate_loss(p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs)
         return self.ctr_loss_proportion*loss_ctr + self.cvr_loss_proportion*loss_cvr + self.ctcvr_loss_proportion*loss_ctcvr
+
+class Impression_CTR_IPW_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+        p_ctr_clamp = torch.clamp(p_ctr, 0.05, 1.0-1e-7)
+        ips = 1. / p_ctr_clamp
+        
+        loss_ctr = torch.nn.functional.binary_cross_entropy(
+            p_ctr, y_ctr, reduction='none'
+        )
+        loss_ctr = torch.mean(ips*loss_ctr)
+
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        loss_cvr = torch.mean(y_ctr*loss_cvr)
+
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
+        return loss_ctr, loss_cvr, loss_ctcvr
+class Unclick_CTR_IPW_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+        p_ctr_clamp = torch.clamp(p_ctr, 0.05, 1.0-1e-7)
+        
+        unclick_ips = (1 - y_ctr) /  p_ctr_clamp
+        click_ips = y_ctr / p_ctr_clamp
+        loss_ctr = torch.nn.functional.binary_cross_entropy(
+            p_ctr, y_ctr, reduction='none'
+        )
+        loss_ctr = torch.mean(y_ctr*loss_ctr + unclick_ips*loss_ctr)
+        
+
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        loss_cvr = torch.mean(y_ctr*loss_cvr)
+
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
+        return loss_ctr, loss_cvr, loss_ctcvr
+class Click_CTR_IPW_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+        p_ctr_clamp = torch.clamp(p_ctr, 0.05, 1.0-1e-7)
+        ips = 1. / p_ctr_clamp
+        
+        unclick_ips = (1 - y_ctr) /  p_ctr_clamp
+        click_ips = y_ctr / p_ctr_clamp
+        loss_ctr = torch.nn.functional.binary_cross_entropy(
+            p_ctr, y_ctr, reduction='none'
+        )
+        loss_ctr = torch.mean(click_ips*loss_ctr + (1  -y_ctr)*loss_ctr)
+
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        loss_cvr = torch.mean(y_ctr*loss_cvr)
+
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
+        return loss_ctr, loss_cvr, loss_ctcvr
+class Impression_CTR_IPW_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+        p_ctr_clamp = torch.clamp(p_ctr, 1e-7, 1.0-1e-7)
+        ips = 1. / p_ctr_clamp
+        
+        loss_ctr = torch.nn.functional.binary_cross_entropy(
+            p_ctr, y_ctr, reduction='none'
+        )
+        loss_ctr = torch.mean(ips*loss_ctr)
+
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        loss_cvr = torch.mean(y_ctr*loss_cvr)
+
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
+        return loss_ctr, loss_cvr, loss_ctcvr
+
+class CTR_IPW_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+        p_ctr_clamp = torch.clamp(p_ctr, 1e-7, 1.0-1e-7)
+        ips = 1. / p_ctr_clamp
+        
+        loss_ctr = torch.nn.functional.binary_cross_entropy(
+            p_ctr, y_ctr, reduction='none'
+        )
+        loss_ctr = torch.mean(ips*loss_cvr)
+
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        loss_cvr = torch.mean(y_ctr*loss_cvr)
+
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
+        return loss_ctr, loss_cvr, loss_ctcvr
 
 class IPW_Loss(BasicMultiTaskLoss):
     def __init__(self, 
@@ -314,6 +365,7 @@ class IPW_Loss(BasicMultiTaskLoss):
 
         loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
         return loss_ctr, loss_cvr, loss_ctcvr
+
 
 class DR_Loss(BasicMultiTaskLoss):
     def __init__(self, 
@@ -352,7 +404,6 @@ class Basic_Loss(BasicMultiTaskLoss):
         loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
 
         return loss_ctr, loss_cvr, loss_ctcvr
-    
     
 class Entire_Space_Basic_Loss(BasicMultiTaskLoss):
     '''

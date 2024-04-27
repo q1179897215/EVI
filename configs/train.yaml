@@ -16,7 +16,7 @@ defaults:
 
   # experiment configs allow for version control of specific hyperparameters
   # e.g. the best hyperparameters for given model and datamodule
-  - experiment: descm_experiment
+  - experiment: descm_res_experiment
 
   # config for hyperparameter optimization
   - hparams_search: null
