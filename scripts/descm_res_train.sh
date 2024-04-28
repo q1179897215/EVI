@@ -10,13 +10,13 @@ experiment=descm_res_experiment \
 logger=csv \
 test=True data.debug=True >logs/out.log 2>&1 & \
 
-# simple ratio 训练
+# simple 训练
 nohup python src/train.py \
 -m data=ccp,nl,us,es \
 model._target_=src.models.descm_res.MultiTaskLitModel_Res \
-model.model._target_=src.models.descm_res.DESCM_Embedding_Res_M0,src.models.descm_res.DESCM_Embedding_Res_M1 \
-model.loss._target_=src.models.descm_res.Basic_Loss_Res \
-trainer.max_epochs=3,4,5 trainer.min_epochs=1 \
+model.model._target_=src.models.descm_res.DESCM_Embedding_Res_Simple \
+model.loss._target_=src.models.descm_res.Basic_Loss_Res_Indentity \
+trainer.max_epochs=3 trainer.min_epochs=1 \
 experiment=descm_res_experiment \
 test=True data.debug=False >logs/out.log 2>&1 & \
 

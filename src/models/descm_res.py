@@ -585,3 +585,22 @@ class Basic_Loss_Res_1(BasicMultiTaskLoss):
         loss_ctr += torch.nn.functional.binary_cross_entropy(p_ctr_1, y_ctr, reduction='mean')
         
         return loss_ctr, loss_cvr, loss_ctcvr
+    
+    
+class Basic_Loss_Res_Indentity(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        loss_cvr = torch.mean(loss_cvr*y_ctr)
+        loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean') 
+        loss_ctr += torch.nn.functional.binary_cross_entropy(kwargs['p_ctr_0'], y_ctr, reduction='mean')
+        loss_ctr += torch.nn.functional.binary_cross_entropy(p_ctr, kwargs['p_ctr_0'], reduction='mean')
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
+
+        return loss_ctr, loss_cvr, loss_ctcvr
