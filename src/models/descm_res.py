@@ -452,16 +452,8 @@ class DESCM_Embedding_Res_All(torch.nn.Module):
         self.tower_dropout = tower_dropout
         self.task_feature_dim = self.A_embed_output_dim
             
-        self.mmoe = MMOE(
-            input_dim=self.embed_output_dim + self.embedding_layer.embedding_size*2, 
-            expert_num=self.expert_num, 
-            task_num=self.task_num,
-            expert_dims=self.expert_dims,
-            tower_dims=self.tower_dims, 
-            expert_dropout=self.expert_dropout,
-            tower_dropout=self.tower_dropout,
-        )
-        self.ctr_mmoe_0 = MMOE(
+
+        self.mmoe_0 = MMOE(
             input_dim=self.embed_output_dim, 
             expert_num=self.expert_num, 
             task_num=self.task_num,
@@ -470,8 +462,17 @@ class DESCM_Embedding_Res_All(torch.nn.Module):
             expert_dropout=self.expert_dropout,
             tower_dropout=self.tower_dropout,
         )
-        self.ctr_mmoe_1 = MMOE(
-            input_dim=self.embed_output_dim+self.embedding_layer.embedding_size, 
+        self.mmoe_1 = MMOE(
+            input_dim=self.embed_output_dim+self.embedding_layer.embedding_size*2, 
+            expert_num=self.expert_num, 
+            task_num=self.task_num,
+            expert_dims=self.expert_dims,
+            tower_dims=self.tower_dims, 
+            expert_dropout=self.expert_dropout,
+            tower_dropout=self.tower_dropout,
+        )
+        self.mmoe = MMOE(
+            input_dim=self.embed_output_dim + self.embedding_layer.embedding_size*4, 
             expert_num=self.expert_num, 
             task_num=self.task_num,
             expert_dims=self.expert_dims,
@@ -483,21 +484,31 @@ class DESCM_Embedding_Res_All(torch.nn.Module):
         self.confounder_dense_0 = torch.nn.Linear(1, self.embedding_layer.embedding_size)
         torch.nn.init.xavier_uniform_(self.confounder_dense_0.weight.data)
         self.confounder_dense_1 = torch.nn.Linear(1, self.embedding_layer.embedding_size)
+        torch.nn.init.xavier_uniform_(self.confounder_dense_0.weight.data)
+        self.confounder_dense_2 = torch.nn.Linear(1, self.embedding_layer.embedding_size)
+        torch.nn.init.xavier_uniform_(self.confounder_dense_1.weight.data)
+        self.confounder_dense_3 = torch.nn.Linear(1, self.embedding_layer.embedding_size)
         torch.nn.init.xavier_uniform_(self.confounder_dense_1.weight.data)
 
         
     def forward(self, x):
         feature_embedding = self.embedding_layer(x)
-        results_0 = self.ctr_mmoe_0(feature_embedding)
+        results_0 = self.mmoe_0(feature_embedding)
         pctr_0 = results_0[0]
         pctr_0 = pctr_0.reshape(-1, 1)
+        pcvr_0 = results_0[1]
+        pcvr_0 = pcvr_0.reshape(-1, 1)
         pctr_0_embedding = self.confounder_dense_0(pctr_0.detach())
-        new_embedding_0 = torch.cat((feature_embedding, pctr_0_embedding), 1)
-        results_1 = self.ctr_mmoe_1(new_embedding_0)
+        pcvr_0_embedding = self.confounder_dense_1(pcvr_0.detach())
+        new_embedding_0 = torch.cat((feature_embedding, pctr_0_embedding, pcvr_0_embedding), 1)
+        results_1 = self.mmoe_1(new_embedding_0)
         pctr_1 = results_1[0]
         pctr_1 = pctr_1.reshape(-1, 1)
-        pctr_1_embedding = self.confounder_dense_1(pctr_1.detach())
-        new_embedding_1 = torch.cat((new_embedding_0, pctr_1_embedding), 1)
+        p_cvr_1 = results_1[1]
+        p_cvr_1 = p_cvr_1.reshape(-1, 1)
+        pctr_1_embedding = self.confounder_dense_2(pctr_1.detach())
+        pcvr_1_embedding = self.confounder_dense_3(p_cvr_1.detach())
+        new_embedding_1 = torch.cat((new_embedding_0, pctr_1_embedding, pcvr_1_embedding), 1)
         results = self.mmoe(new_embedding_1)
         return results[0], results[1], torch.mul(results[0], results[1]), results[2], results_0, results_1
 
