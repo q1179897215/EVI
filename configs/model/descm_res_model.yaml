@@ -8,7 +8,7 @@ _target_: src.models.descm_res.MultiTaskLitModel_Res
 # grammar problems with hydra config parser.
 
 model:
-  _target_: src.models.descm_res.DESCM_Embedding_Res_Cross
+  _target_: src.models.descm_res.DESCM_Embedding_Res_Cross1
   embedding_layer:
     _target_: src.models.common.AlldataEmbeddingLayer
     batch_type: ${data.batch_type}
