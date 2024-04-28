@@ -12,10 +12,10 @@ test=True data.debug=True >logs/out.log 2>&1 & \
 
 # simple 训练
 nohup python src/train.py \
--m data=ccp,nl,us,es,fr \
-model._target_=src.models.descm_res.MultiTaskLitModel_Res_All \
-model.model._target_=src.models.descm_res.DESCM_Embedding_Res_All \
-model.loss._target_=src.models.descm_res.Basic_Loss_Res_All \
+-m data=ccp,fr,nl,us,es \
+model._target_=src.models.descm_res.MultiTaskLitModel_Res \
+model.model._target_=src.models.descm_res.DESCM_Embedding_Res_Simplest \
+model.loss._target_=src.models.descm_res.Basic_Loss_Res \
 trainer.max_epochs=3 trainer.min_epochs=1 \
 experiment=descm_res_experiment \
 test=True data.debug=False >logs/out.log 2>&1 & \

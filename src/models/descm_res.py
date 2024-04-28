@@ -174,6 +174,85 @@ class DESCM_Embedding_Res_Simple(torch.nn.Module):
         results = self.mmoe(new_embedding_1)
         return pctr_1.squeeze(1), results[0], torch.mul(pctr_1.squeeze(1), results[0]), results[1], pctr_0.squeeze(1)
     
+class Towers(torch.nn.Module):
+    def __init__(self, input_dim, task_num, tower_dims, tower_dropout):
+        super().__init__()
+        self.input_dim = input_dim    
+        self.task_num = task_num
+        self.tower_dims = tower_dims
+        self.tower_dropout = tower_dropout
+        
+        self.tower = torch.nn.ModuleList(
+            [
+                MultiLayerPerceptron(
+                    self.input_dim,
+                    self.tower_dims,
+                    self.tower_dropout,
+                )
+                for _ in range(self.task_num)
+            ]
+        )
+
+    def forward(self, x):
+        results = [torch.sigmoid(self.tower[i](x).squeeze(1)) for i in range(self.task_num)]
+        return results
+class DESCM_Embedding_Res_Simplest(torch.nn.Module):
+    def __init__(
+        self,
+        embedding_layer: AlldataEmbeddingLayer,
+        tower_dims: List[int] = [128, 64, 32],
+        tower_dropout: List[float] = [0.1, 0.3, 0.3],
+        A_embed_output_dim: int = 0,
+    ):
+        super().__init__()
+        self.embedding_layer = embedding_layer
+        self.embed_output_dim = self.embedding_layer.get_embed_output_dim()
+        if A_embed_output_dim == 0:
+            self.A_embed_output_dim  = self.embedding_layer.get_embed_output_dim()
+        else:
+            self.A_embed_output_dim = A_embed_output_dim
+        self.tower_dims = tower_dims
+        self.tower_dropout = tower_dropout
+        self.task_feature_dim = self.A_embed_output_dim
+            
+        self.towers = Towers(
+            input_dim=self.embed_output_dim + self.embedding_layer.embedding_size*2, 
+            task_num=2,
+            tower_dims=self.tower_dims, 
+            tower_dropout=self.tower_dropout,
+        )
+        self.ctr_tower_0 = Towers(
+            input_dim=self.embed_output_dim, 
+            task_num=1,
+            tower_dims=self.tower_dims, 
+            tower_dropout=self.tower_dropout,
+        )
+        self.ctr_tower_1 = Towers(
+            input_dim=self.embed_output_dim+self.embedding_layer.embedding_size, 
+            task_num=1,
+            tower_dims=self.tower_dims, 
+            tower_dropout=self.tower_dropout,
+        )
+        # self.ratio = torch.nn.Parameter(torch.FloatTensor([0.1]))
+        self.confounder_dense_0 = torch.nn.Linear(1, self.embedding_layer.embedding_size)
+        torch.nn.init.xavier_uniform_(self.confounder_dense_0.weight.data)
+        self.confounder_dense_1 = torch.nn.Linear(1, self.embedding_layer.embedding_size)
+        torch.nn.init.xavier_uniform_(self.confounder_dense_1.weight.data)
+
+        
+    def forward(self, x):
+        feature_embedding = self.embedding_layer(x)
+        pctr_0 = self.ctr_tower_0(feature_embedding)[0]
+        pctr_0 = pctr_0.reshape(-1, 1)
+        pctr_0_embedding = self.confounder_dense_0(pctr_0.detach())
+        new_embedding_0 = torch.cat((feature_embedding, pctr_0_embedding), 1)
+        pctr_1 = self.ctr_tower_1(new_embedding_0)[0]
+        pctr_1 = pctr_1.reshape(-1, 1)
+        pctr_1_embedding = self.confounder_dense_1(pctr_1.detach())
+        new_embedding_1 = torch.cat((new_embedding_0, pctr_1_embedding), 1)
+        results = self.towers(new_embedding_1)
+        return pctr_1.squeeze(1), results[0], torch.mul(pctr_1.squeeze(1), results[0]), results[1], pctr_0.squeeze(1)
+    
 class CrossNetwork(nn.Module):
     def __init__(self, input_dim, layer_num=2):
         super(CrossNetwork, self).__init__()
