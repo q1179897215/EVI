@@ -8,11 +8,11 @@ _target_: src.models.descm_res.MultiTaskLitModel_Res
 # grammar problems with hydra config parser.
 
 model:
-  _target_: src.models.descm_res.DESCM_Embedding_Res_Simplest
+  _target_: src.models.descm_res.DESCM_Embedding_Res_Cross
   embedding_layer:
     _target_: src.models.common.AlldataEmbeddingLayer
     batch_type: ${data.batch_type}
-    embedding_size: 5  
+    embedding_size: 5
   # task_num: 3
   # expert_num: 8
   # expert_dims: [256]

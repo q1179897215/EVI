@@ -14,8 +14,9 @@ test=True data.debug=True >logs/out.log 2>&1 & \
 nohup python src/train.py \
 -m data=ccp,fr,nl,us,es \
 model._target_=src.models.descm_res.MultiTaskLitModel_Res \
-model.model._target_=src.models.descm_res.DESCM_Embedding_Res_Simplest \
+model.model._target_=src.models.descm_res.DESCM_Embedding_Res_Cross \
 model.loss._target_=src.models.descm_res.Basic_Loss_Res \
++model.model.cross_num=1,2,3 \
 trainer.max_epochs=3 trainer.min_epochs=1 \
 experiment=descm_res_experiment \
 test=True data.debug=False >logs/out.log 2>&1 & \
