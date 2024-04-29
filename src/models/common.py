@@ -278,6 +278,7 @@ class Unclick_CTR_IPW_Loss(BasicMultiTaskLoss):
 
         loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
         return loss_ctr, loss_cvr, loss_ctcvr
+    
 class Click_CTR_IPW_Loss(BasicMultiTaskLoss):
     def __init__(self, 
                  ctr_loss_proportion: float = 1, 

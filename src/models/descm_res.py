@@ -254,7 +254,7 @@ class DESCM_Embedding_Res_Simplest(torch.nn.Module):
         return pctr_1.squeeze(1), results[0], torch.mul(pctr_1.squeeze(1), results[0]), results[1], pctr_0.squeeze(1)
     
 class CrossNetwork(nn.Module):
-    def __init__(self, input_dim, layer_num=3):
+    def __init__(self, input_dim, layer_num=2):
         super(CrossNetwork, self).__init__()
         self.cross_layers = nn.ModuleList([nn.Linear(input_dim, 1) for _ in range(layer_num)])
 
@@ -273,7 +273,6 @@ class DESCM_Embedding_Res_Cross(torch.nn.Module):
         tower_dims: List[int] = [128, 64, 32],
         tower_dropout: List[float] = [0.1, 0.3, 0.3],
         A_embed_output_dim: int = 0,
-        cross_num: int = 3,
     ):
         super().__init__()
         self.embedding_layer = embedding_layer
@@ -291,7 +290,7 @@ class DESCM_Embedding_Res_Cross(torch.nn.Module):
         self.task_feature_dim = self.A_embed_output_dim
             
         self.mmoe = MMOE(
-            input_dim=self.embed_output_dim + self.embedding_layer.embedding_size*2, 
+            input_dim=self.embed_output_dim + self.embedding_layer.embedding_size, 
             expert_num=self.expert_num, 
             task_num=self.task_num-1,
             expert_dims=self.expert_dims,
@@ -309,75 +308,6 @@ class DESCM_Embedding_Res_Cross(torch.nn.Module):
             tower_dropout=self.tower_dropout,
         )
         self.ctr_mmoe_1 = MMOE(
-            input_dim=self.embed_output_dim+self.embedding_layer.embedding_size, 
-            expert_num=self.expert_num, 
-            task_num=1,
-            expert_dims=self.expert_dims,
-            tower_dims=self.tower_dims, 
-            expert_dropout=self.expert_dropout,
-            tower_dropout=self.tower_dropout,
-        )
-        # self.ratio = torch.nn.Parameter(torch.FloatTensor([0.1]))
-        self.confounder_dense_0 = torch.nn.Linear(1, self.embedding_layer.embedding_size)
-        torch.nn.init.xavier_uniform_(self.confounder_dense_0.weight.data)
-        self.confounder_dense_1 = torch.nn.Linear(1, self.embedding_layer.embedding_size)
-        torch.nn.init.xavier_uniform_(self.confounder_dense_1.weight.data)
-        
-        self.cross = CrossNetwork(self.embed_output_dim+self.embedding_layer.embedding_size, layer_num=cross_num)
-
-        
-    def forward(self, x):
-        feature_embedding = self.embedding_layer(x)
-        pctr_0 = self.ctr_mmoe_0(feature_embedding)[0]
-        pctr_0 = pctr_0.reshape(-1, 1)
-        pctr_0_embedding = self.confounder_dense_0(pctr_0.detach())
-        new_embedding_0 = torch.cat((feature_embedding, pctr_0_embedding), 1)
-        new_embedding_cross = self.cross(new_embedding_0, new_embedding_0)
-        pctr_1 = self.ctr_mmoe_1(new_embedding_cross)[0]
-        pctr_1 = pctr_1.reshape(-1, 1)
-        pctr_1_embedding = self.confounder_dense_1(pctr_1.detach())
-        new_embedding_1 = torch.cat((new_embedding_cross, pctr_1_embedding), 1)
-        results = self.mmoe(new_embedding_1)
-        return pctr_1.squeeze(1), results[0], torch.mul(pctr_1.squeeze(1), results[0]), results[1], pctr_0.squeeze(1)
-    
-class DESCM_Embedding_Res_Cross1(torch.nn.Module):
-    def __init__(
-        self,
-        embedding_layer: AlldataEmbeddingLayer,
-        task_num: int = 3,
-        expert_num: int = 8,
-        expert_dims: List[int] = [256],
-        expert_dropout: List[float] = [0.3],
-        tower_dims: List[int] = [128, 64, 32],
-        tower_dropout: List[float] = [0.1, 0.3, 0.3],
-        A_embed_output_dim: int = 0,
-        cross_num: int = 3,
-    ):
-        super().__init__()
-        self.embedding_layer = embedding_layer
-        self.embed_output_dim = self.embedding_layer.get_embed_output_dim()
-        if A_embed_output_dim == 0:
-            self.A_embed_output_dim  = self.embedding_layer.get_embed_output_dim()
-        else:
-            self.A_embed_output_dim = A_embed_output_dim
-        self.task_num = task_num
-        self.expert_num = expert_num
-        self.expert_dims = expert_dims
-        self.expert_dropout = expert_dropout
-        self.tower_dims = tower_dims
-        self.tower_dropout = tower_dropout
-        self.task_feature_dim = self.A_embed_output_dim
-            
-        self.mmoe = MMOE(
-            input_dim=self.embed_output_dim + self.embedding_layer.embedding_size*2, 
-            expert_num=self.expert_num, 
-            task_num=self.task_num-1,
-            expert_dims=self.expert_dims,
-            tower_dims=self.tower_dims, 
-            expert_dropout=self.expert_dropout,
-            tower_dropout=self.tower_dropout,
-        )
-        self.ctr_mmoe_0 = MMOE(
             input_dim=self.embed_output_dim, 
             expert_num=self.expert_num, 
             task_num=1,
@@ -386,22 +316,13 @@ class DESCM_Embedding_Res_Cross1(torch.nn.Module):
             expert_dropout=self.expert_dropout,
             tower_dropout=self.tower_dropout,
         )
-        self.ctr_mmoe_1 = MMOE(
-            input_dim=self.embed_output_dim+self.embedding_layer.embedding_size, 
-            expert_num=self.expert_num, 
-            task_num=1,
-            expert_dims=self.expert_dims,
-            tower_dims=self.tower_dims, 
-            expert_dropout=self.expert_dropout,
-            tower_dropout=self.tower_dropout,
-        )
         # self.ratio = torch.nn.Parameter(torch.FloatTensor([0.1]))
-        self.confounder_dense_0 = torch.nn.Linear(1, self.embedding_layer.embedding_size)
+        self.confounder_dense_0 = torch.nn.Linear(1, self.embed_output_dim)
         torch.nn.init.xavier_uniform_(self.confounder_dense_0.weight.data)
         self.confounder_dense_1 = torch.nn.Linear(1, self.embedding_layer.embedding_size)
         torch.nn.init.xavier_uniform_(self.confounder_dense_1.weight.data)
         
-        self.cross = CrossNetwork(self.embed_output_dim+self.embedding_layer.embedding_size*2, layer_num=cross_num)
+        self.cross = CrossNetwork(self.embed_output_dim, layer_num=2)
 
         
     def forward(self, x):
@@ -409,13 +330,12 @@ class DESCM_Embedding_Res_Cross1(torch.nn.Module):
         pctr_0 = self.ctr_mmoe_0(feature_embedding)[0]
         pctr_0 = pctr_0.reshape(-1, 1)
         pctr_0_embedding = self.confounder_dense_0(pctr_0.detach())
-        new_embedding_0 = torch.cat((feature_embedding, pctr_0_embedding), 1)
+        new_embedding_0 = self.cross(feature_embedding, pctr_0_embedding)
         pctr_1 = self.ctr_mmoe_1(new_embedding_0)[0]
         pctr_1 = pctr_1.reshape(-1, 1)
         pctr_1_embedding = self.confounder_dense_1(pctr_1.detach())
         new_embedding_1 = torch.cat((new_embedding_0, pctr_1_embedding), 1)
-        new_embedding_cross = self.cross(new_embedding_1, new_embedding_1)
-        results = self.mmoe(new_embedding_cross)
+        results = self.mmoe(new_embedding_1)
         return pctr_1.squeeze(1), results[0], torch.mul(pctr_1.squeeze(1), results[0]), results[1], pctr_0.squeeze(1)
 
 class DESCM_Embedding_Res_M1(torch.nn.Module):
@@ -768,6 +688,31 @@ class Basic_Loss_Res(BasicMultiTaskLoss):
         loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
         loss_cvr = torch.mean(loss_cvr*y_ctr)
         loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean') + torch.nn.functional.binary_cross_entropy(kwargs['p_ctr_0'], y_ctr, reduction='mean')
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
+
+        return loss_ctr, loss_cvr, loss_ctcvr
+    
+class Basic_Loss_Res_Unclick(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 trade_off_unclick_loss: float = 0.5,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+        self.trade_off_unclick_loss = trade_off_unclick_loss
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        loss_cvr = torch.mean(loss_cvr*y_ctr)
+        
+        loss_ctr_1 = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='none')
+        loss_ctr_1[y_ctr == 0] = self.trade_off_unclick_loss * loss_ctr_1[y_ctr == 0]
+        loss_ctr_0 = torch.nn.functional.binary_cross_entropy(kwargs['p_ctr_0'], y_ctr, reduction='none')
+        loss_ctr_0[y_ctr == 0] = self.trade_off_unclick_loss * loss_ctr_0[y_ctr == 0]
+        loss_ctr = torch.mean(loss_ctr_1 + loss_ctr_0)
+        
+ 
         loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
 
         return loss_ctr, loss_cvr, loss_ctcvr
