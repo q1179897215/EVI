@@ -23,7 +23,7 @@ model:
 
 
 loss:
-  _target_: src.models.descm_res.Basic_Loss_Res
+  _target_: src.models.descm_res.Basic_Loss_Res_Unclick
   ctr_loss_proportion: 1
   cvr_loss_proportion: 1
   ctcvr_loss_proportion: 0.1
