@@ -414,8 +414,131 @@ class DESCM_Embedding_Res_Cross1(torch.nn.Module):
         new_embedding_cross = self.cross(new_embedding_1, new_embedding_1)
         results = self.mmoe(new_embedding_cross)
         return pctr_1.squeeze(1), results[0], torch.mul(pctr_1.squeeze(1), results[0]), results[1], pctr_0.squeeze(1)
+class DESCM_Embedding_Res_Cross2(torch.nn.Module):
+    def __init__(
+        self,
+        embedding_layer: AlldataEmbeddingLayer,
+        task_num: int = 3,
+        expert_num: int = 8,
+        expert_dims: List[int] = [256],
+        expert_dropout: List[float] = [0.3],
+        tower_dims: List[int] = [128, 64, 32],
+        tower_dropout: List[float] = [0.1, 0.3, 0.3],
+        A_embed_output_dim: int = 0,
+        cross_num: int = 1,
+        confounder_dim: int = 4,
+    ):
+        super().__init__()
+        self.embedding_layer = embedding_layer
+        self.embed_output_dim = self.embedding_layer.get_embed_output_dim()
+        if A_embed_output_dim == 0:
+            self.A_embed_output_dim  = self.embedding_layer.get_embed_output_dim()
+        else:
+            self.A_embed_output_dim = A_embed_output_dim
+        self.task_num = task_num
+        self.expert_num = expert_num
+        self.expert_dims = expert_dims
+        self.expert_dropout = expert_dropout
+        self.tower_dims = tower_dims
+        self.tower_dropout = tower_dropout
+        self.task_feature_dim = self.A_embed_output_dim
+        self.confounder_dim = confounder_dim
+            
+        self.mmoe = MMOE(
+            input_dim=self.embed_output_dim + self.confounder_dim*2, 
+            expert_num=self.expert_num, 
+            task_num=self.task_num-1,
+            expert_dims=self.expert_dims,
+            tower_dims=self.tower_dims, 
+            expert_dropout=self.expert_dropout,
+            tower_dropout=self.tower_dropout,
+        )
+        self.ctr_mmoe_0 = MMOE(
+            input_dim=self.embed_output_dim, 
+            expert_num=self.expert_num, 
+            task_num=1,
+            expert_dims=self.expert_dims,
+            tower_dims=self.tower_dims, 
+            expert_dropout=self.expert_dropout,
+            tower_dropout=self.tower_dropout,
+        )
+        self.ctr_mmoe_1 = MMOE(
+            input_dim=self.embed_output_dim+self.confounder_dim, 
+            expert_num=self.expert_num, 
+            task_num=1,
+            expert_dims=self.expert_dims,
+            tower_dims=self.tower_dims, 
+            expert_dropout=self.expert_dropout,
+            tower_dropout=self.tower_dropout,
+        )
+        # self.ratio = torch.nn.Parameter(torch.FloatTensor([0.1]))
+        self.confounder_dense_0 = torch.nn.Linear(1, self.confounder_dim)
+        torch.nn.init.xavier_uniform_(self.confounder_dense_0.weight.data)
+        self.confounder_dense_1 = torch.nn.Linear(1, self.confounder_dim)
+        torch.nn.init.xavier_uniform_(self.confounder_dense_1.weight.data)
+        
+        self.cross = CrossNetwork(self.embed_output_dim+self.confounder_dim*2, layer_num=cross_num)
 
+        
+    def forward(self, x):
+        feature_embedding = self.embedding_layer(x)
+        pctr_0 = self.ctr_mmoe_0(feature_embedding)[0]
+        pctr_0 = pctr_0.reshape(-1, 1)
+        pctr_0_embedding = self.confounder_dense_0(pctr_0.detach())
+        new_embedding_0 = torch.cat((feature_embedding, pctr_0_embedding), 1)
+        pctr_1 = self.ctr_mmoe_1(new_embedding_0)[0]
+        pctr_1 = pctr_1.reshape(-1, 1)
+        pctr_1_embedding = self.confounder_dense_1(pctr_1.detach())
+        new_embedding_1 = torch.cat((new_embedding_0, pctr_1_embedding), 1)
+        new_embedding_cross = self.cross(new_embedding_1, new_embedding_1)
+        results = self.mmoe(new_embedding_cross)
+        return pctr_1.squeeze(1), results[0], torch.mul(pctr_1.squeeze(1), results[0]), results[1], pctr_0.squeeze(1)
+class DESCM_Embedding_Res_Wodecon(torch.nn.Module):
+    def __init__(
+        self,
+        embedding_layer: AlldataEmbeddingLayer,
+        task_num: int = 3,
+        expert_num: int = 8,
+        expert_dims: List[int] = [256],
+        expert_dropout: List[float] = [0.3],
+        tower_dims: List[int] = [128, 64, 32],
+        tower_dropout: List[float] = [0.1, 0.3, 0.3],
+        A_embed_output_dim: int = 0,
+        cross_num: int = 3,
+    ):
+        super().__init__()
+        self.embedding_layer = embedding_layer
+        self.embed_output_dim = self.embedding_layer.get_embed_output_dim()
+        if A_embed_output_dim == 0:
+            self.A_embed_output_dim  = self.embedding_layer.get_embed_output_dim()
+        else:
+            self.A_embed_output_dim = A_embed_output_dim
+        self.task_num = task_num
+        self.expert_num = expert_num
+        self.expert_dims = expert_dims
+        self.expert_dropout = expert_dropout
+        self.tower_dims = tower_dims
+        self.tower_dropout = tower_dropout
+        self.task_feature_dim = self.A_embed_output_dim
+            
+        self.mmoe = MMOE(
+            input_dim=self.embed_output_dim, 
+            expert_num=self.expert_num, 
+            task_num=self.task_num,
+            expert_dims=self.expert_dims,
+            tower_dims=self.tower_dims, 
+            expert_dropout=self.expert_dropout,
+            tower_dropout=self.tower_dropout,
+        )
+        
+        self.cross = CrossNetwork(self.embed_output_dim, layer_num=cross_num)
 
+        
+    def forward(self, x):
+        feature_embedding = self.embedding_layer(x)
+        new_embedding_cross = self.cross(feature_embedding, feature_embedding)
+        results = self.mmoe(new_embedding_cross)
+        return results[0], results[1], torch.mul(results[0], results[1]), results[2], results[0]
 
 class DESCM_Embedding_Res_M1(torch.nn.Module):
     def __init__(
@@ -708,6 +831,14 @@ class MultiTaskLitModel_Res(pl.LightningModule):
         self.ctr_auc.update(click_pred, click)
         self.cvr_auc.update(conversion_pred_filter, conversion_filter)
         self.ctcvr_auc.update(click_conversion_pred, click * conversion)
+        return {'click_pred_test': click_pred, 
+                'conversion_pred_test': conversion_pred,
+                'conversion_pred_filter_test': conversion_pred_filter,
+                'click_conversion_pred_test': click_conversion_pred,
+                'click_label_test': click,  
+                'conversion_label_test': conversion,  
+                'conversion_label_filter_test': conversion_filter,
+                'click_conversion_label_test': click*conversion} 
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
@@ -753,7 +884,6 @@ class MultiTaskLitModel_Res_All(pl.LightningModule):
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
-
 
 class Basic_Loss_Res(BasicMultiTaskLoss):
     def __init__(self, 

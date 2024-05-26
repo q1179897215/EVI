@@ -8,7 +8,7 @@ _target_: src.models.common.MultiTaskLitModel
 # grammar problems with hydra config parser.
 
 model:
-  _target_: src.models.descm.DESCM_Embedding
+  _target_: src.models.descm.ESCM
   embedding_layer:
     _target_: src.models.common.AlldataEmbeddingLayer
     batch_type: ${data.batch_type}
@@ -23,7 +23,7 @@ model:
 
 
 loss:
-  _target_: src.models.common.Impression_CTR_IPW_Loss
+  _target_: src.models.common.DR_VR_Loss
   ctr_loss_proportion: 1
   cvr_loss_proportion: 1
   ctcvr_loss_proportion: 0.1

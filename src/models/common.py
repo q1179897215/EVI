@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+import os 
+import sys
 from typing import Any, Dict, Tuple, List
 import hydra
 import lightning.pytorch as pl
@@ -10,6 +12,7 @@ from torchmetrics.classification import AUROC, Accuracy, BinaryAUROC # type: ign
 import numpy as np
 import torch
 import torch.nn as nn
+import matplotlib.pyplot as plt
 
 multi_embedding_vocabulary_size = {
     "101": 238635,
@@ -174,6 +177,112 @@ class MultiTaskCallback(Callback):
         pl_module.ctr_auc.reset()
         pl_module.cvr_auc.reset()
         pl_module.ctcvr_auc.reset()
+        
+class MultiTaskCallback_Plot(Callback):
+    def __init__(
+        self, 
+        fig_dir: str = './outputs'
+    ):
+        super().__init__()
+        self.fig_dir = fig_dir 
+
+    def on_test_start(self, trainer, pl_module):
+        self.click_pred_test = []
+        self.conversion_pred_test = []
+        self.conversion_pred_filter_test = []
+        self.click_conversion_pred_test = []
+        self.click_label_test = []
+        self.conversion_label_test = []
+        self.conversion_label_filter_test = []
+        self.click_conversion_label_test = []
+    
+    def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        self.click_pred_test.append(outputs['click_pred_test'])
+        self.conversion_pred_test.append(outputs['conversion_pred_test'])
+        self.conversion_pred_filter_test.append(outputs['conversion_pred_filter_test'])
+        self.click_conversion_pred_test.append(outputs['click_conversion_pred_test'])
+        self.click_label_test.append(outputs['click_label_test'])
+        self.conversion_label_test.append(outputs['conversion_label_test'])
+        self.conversion_label_filter_test.append(outputs['conversion_label_filter_test'])
+        self.click_conversion_label_test.append(outputs['click_conversion_label_test'])
+
+    def on_test_epoch_end(self, trainer, pl_module):
+        self.log("test/ctr_auc", pl_module.ctr_auc.compute())
+        self.log("test/cvr_auc", pl_module.cvr_auc.compute())
+        self.log("test/ctcvr_auc", pl_module.ctcvr_auc.compute())
+        pl_module.ctr_auc.reset()
+        pl_module.cvr_auc.reset()
+        pl_module.ctcvr_auc.reset()
+        
+        self.click_label_test = torch.cat(self.click_label_test).cpu().detach().numpy()
+        self.click_pred_test = torch.cat(self.click_pred_test).cpu().detach().numpy()
+        self.conversion_pred_test = torch.cat(self.conversion_pred_test).cpu().detach().numpy()
+        self.conversion_label_test = torch.cat(self.conversion_label_test).cpu().detach().numpy()
+        self.conversion_pred_filter_test = torch.cat(self.conversion_pred_filter_test).cpu().detach().numpy()
+        self.conversion_label_filter_test = torch.cat(self.conversion_label_filter_test).cpu().detach().numpy()
+        
+        propensity_scores = 1 / self.click_pred_test
+        propensity_scores_click = 1 / self.click_pred_test[self.click_label_test==1]
+        propensity_scores_unclick = 1 / self.click_pred_test[self.click_label_test==0]
+        propensity_scores_click_expection = propensity_scores_click.mean()
+        
+        print('propensity_scores_click_expection', propensity_scores_click_expection)
+        print('propensity_scores_click_variance', propensity_scores_click.var())
+
+        
+        print('conversion_label_mean', self.conversion_label_test.mean())
+        print('conversion_pred_mean', self.conversion_pred_test.mean())
+        print('conversion_pred_variance', self.conversion_pred_test.var())
+        
+        print('conversion_label_filter_mean', self.conversion_label_filter_test.mean())
+        print('conversion_pred_filter_mean', self.conversion_pred_filter_test.mean())
+        print('conversion_pred_filter_variance', self.conversion_pred_filter_test.var()) 
+        
+        if os.path.exists(self.fig_dir) == False:
+            os.makedirs(self.fig_dir)
+            
+        
+        plt.figure(figsize=(12,9), dpi=200)
+        plt.hist(self.conversion_pred_filter_test, bins=100, color='whitesmoke', alpha=1, edgecolor='black', density=True, label='Count')
+        # Add a vertical line at the mean
+        pred_mean = self.conversion_pred_filter_test.mean()
+        pred_var = self.conversion_pred_filter_test.var()
+        # var show in scientific notation
+        pred_var = '%.2E' % pred_var
+        label_mean = self.conversion_label_filter_test.mean()
+        increase = (pred_mean - label_mean) / label_mean
+        # get round of increase
+        if increase > 0:
+            increase = '+' + str(round(increase*100, 2))
+        else:
+            increase = str(round(increase*100, 2))
+        increase = increase + '%'
+        
+
+        plt.axvline(pred_mean, color='r', linestyle='dashed', linewidth=2, label='Prediction Mean:{:.4f}({}), Variance:{}'.format(pred_mean, increase, pred_var))
+        plt.axvline(label_mean, color='g', linestyle='dashed', linewidth=2, label='Label Mean:{:.4f}'.format(label_mean))
+
+        # Display the mean value on the plot
+        # plt.text(pred_mean+1, 0.03, 'Mean: {:.2f}'.format(pred_mean), fontsize=20, color='r')
+
+        plt.xlabel('CVR prediction values', fontsize=28, color='black')
+        plt.ylabel('Count', fontsize=28, color='black')
+        plt.xticks(fontsize=20, color='black')
+        plt.yticks(fontsize=20, color='black')
+        plt.style.use('fast')
+        plt.legend(fontsize=20)
+        plt.savefig(self.fig_dir +'/conversion_pred_filter_test' + '.pdf', format='pdf')
+        plt.clf()
+        
+        plt.hist(self.conversion_pred_test, bins=100,  edgecolor='black', alpha=0.5,  color='orange')
+        plt.savefig(self.fig_dir+'/conversion_pred_test' + '.png', format='png', dpi=300)
+        plt.clf()
+        
+        plt.hist(self.click_pred_test, bins=100,  edgecolor='black', alpha=0.5,  color='orange')
+        plt.savefig(self.fig_dir+'/click_pred_test' + '.png', format='png', dpi=300)
+        plt.clf()
+        
+
 
 class MultiTaskLitModel(pl.LightningModule):
     def __init__(self, model, loss, lr, weight_decay, batch_type):
@@ -213,6 +322,15 @@ class MultiTaskLitModel(pl.LightningModule):
         self.ctr_auc.update(click_pred, click)
         self.cvr_auc.update(conversion_pred_filter, conversion_filter)
         self.ctcvr_auc.update(click_conversion_pred, click * conversion)
+        
+        return {'click_pred_test': click_pred, 
+                'conversion_pred_test': conversion_pred,
+                'conversion_pred_filter_test': conversion_pred_filter,
+                'click_conversion_pred_test': click_conversion_pred,
+                'click_label_test': click,  
+                'conversion_label_test': conversion,  
+                'conversion_label_filter_test': conversion_filter,
+                'click_conversion_label_test': click*conversion} 
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
@@ -302,6 +420,7 @@ class Click_CTR_IPW_Loss(BasicMultiTaskLoss):
 
         loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
         return loss_ctr, loss_cvr, loss_ctcvr
+
 class Impression_CTR_IPW_Loss(BasicMultiTaskLoss):
     def __init__(self, 
                  ctr_loss_proportion: float = 1, 
@@ -345,50 +464,6 @@ class CTR_IPW_Loss(BasicMultiTaskLoss):
 
         loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
         return loss_ctr, loss_cvr, loss_ctcvr
-
-class IPW_Loss(BasicMultiTaskLoss):
-    def __init__(self, 
-                 ctr_loss_proportion: float = 1, 
-                 cvr_loss_proportion: float = 1, 
-                 ctcvr_loss_proportion: float = 0.1,
-                 ):
-        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
-    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
-        
-        loss_ctr = torch.nn.functional.binary_cross_entropy(
-            p_ctr, y_ctr, reduction='mean'
-        )
-
-        p_ctr_clamp = torch.clamp(p_ctr, 1e-7, 1.0-1e-7)
-        ips = y_ctr / p_ctr_clamp
-        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
-        loss_cvr = torch.mean(ips*loss_cvr)
-
-        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
-        return loss_ctr, loss_cvr, loss_ctcvr
-
-
-class DR_Loss(BasicMultiTaskLoss):
-    def __init__(self, 
-                 ctr_loss_proportion: float = 1, 
-                 cvr_loss_proportion: float = 1, 
-                 ctcvr_loss_proportion: float = 0.1,
-                 ):
-        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
-    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
-        p_imp = kwargs['p_imp']
-        p_ctr_clamp = torch.clamp(p_ctr, 1e-7, 1.0-1e-7)
-        ips = y_ctr / p_ctr_clamp
-        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
-        imp_error = torch.abs(p_imp-loss_cvr) 
-        imp_error_2 = imp_error * imp_error
-        loss_cvr = torch.mean(p_imp+ips*imp_error+ips*imp_error_2)
-
-
-        loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean')
-        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
-
-        return loss_ctr, loss_cvr, loss_ctcvr
     
 class Basic_Loss(BasicMultiTaskLoss):
     def __init__(self, 
@@ -423,4 +498,362 @@ class Entire_Space_Basic_Loss(BasicMultiTaskLoss):
         loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean')
         loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
 
+        return loss_ctr, loss_cvr, loss_ctcvr
+    
+class MMoE_Single_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        loss_cvr = torch.mean(loss_cvr*y_ctr)
+        loss_ctr = 0
+        loss_ctcvr = 0
+
+        return loss_ctr, loss_cvr, loss_ctcvr
+    
+class MMoE_Multi_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        loss_cvr = torch.mean(loss_cvr*y_ctr)
+        loss_ctr =  torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean')
+
+        loss_ctcvr = 0
+
+        return loss_ctr, loss_cvr, loss_ctcvr
+    
+class IPW_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+        
+        loss_ctr = torch.nn.functional.binary_cross_entropy(
+            p_ctr, y_ctr, reduction='mean'
+        )
+
+        p_ctr_clamp = torch.clamp(p_ctr, 1e-7, 1.0-1e-7)
+        ips = y_ctr / p_ctr_clamp
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        loss_cvr = torch.mean(ips*loss_cvr)
+
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
+        return loss_ctr, loss_cvr, loss_ctcvr
+    
+class DR_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+        p_imp = kwargs['p_imp']
+        p_ctr_clamp = torch.clamp(p_ctr, 1e-7, 1.0-1e-7)
+        ips = y_ctr / p_ctr_clamp
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        imp_error = torch.abs(p_imp-loss_cvr) 
+        imp_error_2 = imp_error * imp_error
+        loss_cvr = torch.mean(p_imp+ips*imp_error+ips*imp_error_2)
+
+
+        loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean')
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
+
+        return loss_ctr, loss_cvr, loss_ctcvr
+    
+class MRDR_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+        p_imp = kwargs['p_imp']
+        loss_ctr = torch.nn.functional.binary_cross_entropy(
+            p_ctr, y_ctr, reduction='mean'
+        )
+
+        p_ctr_clamp = torch.clamp(p_ctr, 1e-7, 1.0-1e-7)
+        ips = y_ctr / p_ctr_clamp
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        imp_error = torch.abs(p_imp-loss_cvr) 
+        imp_error_2 = imp_error * imp_error * ((1 - p_ctr_clamp) / p_ctr_clamp)
+        loss_cvr = torch.mean(p_imp+ips*imp_error+ips*imp_error_2)
+
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
+        return loss_ctr, loss_cvr, loss_ctcvr
+class DR_BIAS_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+        p_imp = kwargs['p_imp']
+        loss_ctr = torch.nn.functional.binary_cross_entropy(
+            p_ctr, y_ctr, reduction='mean'
+        )
+
+        p_ctr_clamp = torch.clamp(p_ctr, 1e-7, 1.0-1e-7)
+        ips = y_ctr / p_ctr_clamp
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        imp_error = torch.abs(p_imp-loss_cvr) 
+        imp_error_2 = imp_error * imp_error * ((y_ctr - p_ctr_clamp) / p_ctr_clamp)**2
+        loss_cvr = torch.mean(p_imp+ips*imp_error+ips*imp_error_2)
+
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
+        return loss_ctr, loss_cvr, loss_ctcvr
+class DR_MSE_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+        p_imp = kwargs['p_imp']
+        loss_ctr = torch.nn.functional.binary_cross_entropy(
+            p_ctr, y_ctr, reduction='mean'
+        )
+
+        p_ctr_clamp = torch.clamp(p_ctr, 1e-7, 1.0-1e-7)
+        ips = y_ctr / p_ctr_clamp
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        imp_error = torch.abs(p_imp-loss_cvr) 
+        imp_error_2 = 0.5 * imp_error * imp_error * ((y_ctr - p_ctr_clamp) / p_ctr_clamp)**2 + 0.5 * imp_error * imp_error * ((1 - p_ctr_clamp) / p_ctr_clamp)
+        loss_cvr = torch.mean(p_imp+ips*imp_error+ips*imp_error_2)
+
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
+        return loss_ctr, loss_cvr, loss_ctcvr
+
+    
+    
+
+class IPS_GPL_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 bias_var_trade_off: float = 0.5,
+                 strength_trade_off: float = 1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+        self.bias_var_trade_off = bias_var_trade_off
+        self.strength_trade_off = strength_trade_off
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+        p_imp = kwargs['p_imp']
+        loss_ctr = torch.nn.functional.binary_cross_entropy(
+            p_ctr, y_ctr, reduction='mean'
+        )
+        
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        ips = y_ctr / p_ctr
+        bias_term = ((y_ctr-2*y_ctr*p_ctr+p_ctr**2) / p_ctr**2) * loss_cvr**2
+        bias_term = torch.sum(bias_term) / len(p_ctr)**2
+        variance_term = (y_ctr / p_ctr**2) * loss_cvr**2
+        variance_term = torch.sum(variance_term) / len(p_ctr)**2
+        
+        loss_ctr = loss_ctr + self.strength_trade_off*(self.bias_var_trade_off*bias_term + (1-self.bias_var_trade_off)*variance_term)
+        loss_cvr = torch.mean(ips*loss_cvr)
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
+        
+        return loss_ctr, loss_cvr, loss_ctcvr
+    
+class DR_GPL_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 bias_var_trade_off: float = 0.5,
+                 strength_trade_off: float = 1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+        self.bias_var_trade_off = bias_var_trade_off
+        self.strength_trade_off = strength_trade_off
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+        p_imp = kwargs['p_imp']
+        loss_ctr = torch.nn.functional.binary_cross_entropy(
+            p_ctr, y_ctr, reduction='mean'
+        )
+        
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        ips = y_ctr / p_ctr
+        imp_error = torch.abs(p_imp-loss_cvr) 
+
+        bias_term = ((y_ctr-2*y_ctr*p_ctr+p_ctr**2) / p_ctr**2) * imp_error**2
+        bias_term = torch.sum(bias_term) / len(p_ctr)**2
+        variance_term = (y_ctr / p_ctr**2) * imp_error**2
+        variance_term = torch.sum(variance_term) / len(p_ctr)**2
+        
+        loss_ctr = loss_ctr + self.strength_trade_off*(self.bias_var_trade_off*bias_term + (1-self.bias_var_trade_off)*variance_term)
+        imp_error_2 = imp_error * imp_error
+        loss_cvr = torch.mean(p_imp+ips*imp_error+ips*imp_error_2)
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
+        
+        return loss_ctr, loss_cvr, loss_ctcvr
+    
+class MRDR_GPL_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 bias_var_trade_off: float = 0.5,
+                 strength_trade_off: float = 1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+        self.bias_var_trade_off = bias_var_trade_off
+        self.strength_trade_off = strength_trade_off
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+        p_imp = kwargs['p_imp']
+        loss_ctr = torch.nn.functional.binary_cross_entropy(
+            p_ctr, y_ctr, reduction='mean'
+        )
+        
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        ips = y_ctr / p_ctr
+        imp_error = torch.abs(p_imp-loss_cvr) 
+        
+        bias_term = ((y_ctr-2*y_ctr*p_ctr+p_ctr**2) / p_ctr**2) * imp_error**2
+        bias_term = torch.sum(bias_term) / len(p_ctr)**2
+        variance_term = (y_ctr / p_ctr**2) * imp_error**2
+        variance_term = torch.sum(variance_term) / len(p_ctr)**2
+        
+        loss_ctr = loss_ctr + self.strength_trade_off*(self.bias_var_trade_off*bias_term + (1-self.bias_var_trade_off)*variance_term)
+        imp_error_2 = imp_error * imp_error * ((1 - p_ctr) / p_ctr)
+        loss_cvr = torch.mean(p_imp+ips*imp_error+ips*imp_error_2)
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
+        
+        return loss_ctr, loss_cvr, loss_ctcvr
+    
+    
+class DRMSE_GPL_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 bias_var_trade_off: float = 0.5,
+                 strength_trade_off: float = 1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+        self.bias_var_trade_off = bias_var_trade_off
+        self.strength_trade_off = strength_trade_off
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+        p_imp = kwargs['p_imp']
+        loss_ctr = torch.nn.functional.binary_cross_entropy(
+            p_ctr, y_ctr, reduction='mean'
+        )
+        
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        ips = y_ctr / p_ctr
+        imp_error = torch.abs(p_imp-loss_cvr) 
+        
+        bias_term = ((y_ctr-2*y_ctr*p_ctr+p_ctr**2) / p_ctr**2) * imp_error**2
+        bias_term = torch.sum(bias_term) / len(p_ctr)**2
+        variance_term = (y_ctr / p_ctr**2) * imp_error**2
+        variance_term = torch.sum(variance_term) / len(p_ctr)**2
+        
+        loss_ctr = loss_ctr + self.strength_trade_off*(self.bias_var_trade_off*bias_term + (1-self.bias_var_trade_off)*variance_term)
+        imp_error_2 = 0.5 * imp_error * imp_error * ((y_ctr - p_ctr) / p_ctr)**2 + 0.5 * imp_error * imp_error * ((1 - p_ctr) / p_ctr)
+        loss_cvr = torch.mean(p_imp+ips*imp_error+ips*imp_error_2)
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
+        
+        return loss_ctr, loss_cvr, loss_ctcvr
+    
+    
+class DR_VR_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+        p_imp = kwargs['p_imp']
+        ips = y_ctr / p_ctr
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        imp_error = torch.abs(p_imp-loss_cvr) 
+        imp_error_2 = imp_error * imp_error
+        bmse = (ips - (1-y_ctr) / (1-p_ctr))*p_cvr
+        bmse = torch.mean(bmse)
+        bmse = torch.sqrt(bmse * bmse)
+        
+        loss_cvr = torch.mean(p_imp+ips*imp_error+ips*imp_error_2) + 0.5*bmse
+
+
+        loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean')
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
+
+        return loss_ctr, loss_cvr, loss_ctcvr
+    
+class IPS_VR_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+        ips = y_ctr / p_ctr
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        bmse = (ips - (1-y_ctr) / (1-p_ctr))*p_cvr
+        bmse = torch.mean(bmse)
+        bmse = torch.sqrt(bmse * bmse)
+        
+        loss_cvr = torch.mean(loss_cvr) + 0.5*bmse
+
+
+        loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean')
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
+
+        return loss_ctr, loss_cvr, loss_ctcvr
+    
+
+    
+
+    
+
+
+
+
+    
+    
+    
+class SNIPS_Loss(BasicMultiTaskLoss):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 ):
+        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
+    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
+        
+        loss_ctr = torch.nn.functional.binary_cross_entropy(
+            p_ctr, y_ctr, reduction='mean'
+        )
+
+        p_ctr_clamp = torch.clamp(p_ctr, 1e-7, 1.0-1e-7)
+        ips = y_ctr / p_ctr_clamp
+        # normalize ips
+        ips = ips / torch.sum(ips)
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        loss_cvr = torch.mean(ips*loss_cvr)
+
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
         return loss_ctr, loss_cvr, loss_ctcvr

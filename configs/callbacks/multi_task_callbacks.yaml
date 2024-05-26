@@ -1,2 +1,14 @@
+defaults:
+  - model_checkpoint
+  - _self_
+
 multi_task_callback:
   _target_: src.models.common.MultiTaskCallback
+
+model_checkpoint:
+  dirpath: ${paths.output_dir}/checkpoints
+  filename: ${data.batch_type} + ${model.model._target_} + ${model.loss._target_} + "epoch_{epoch:03d}"
+  monitor: null
+  mode: "max"
+  save_last: True
+  auto_insert_metric_name: False

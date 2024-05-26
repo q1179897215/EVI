@@ -1,0 +1,4 @@
+multi_task_callback_plot:
+  _target_: src.models.common.MultiTaskCallback_Plot
+  fig_dir: "./outputs"
+

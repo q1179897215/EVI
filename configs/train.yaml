@@ -5,7 +5,7 @@
 defaults:
   - _self_
   - data: ccp
-  - model: descm_model
+  - model: esmm_model
   # - module: mnist.yaml
   - callbacks: multi_task_callbacks
   - logger: null # set logger here or use command line (e.g. `python train.py logger=tensorboard`)
@@ -16,7 +16,7 @@ defaults:
 
   # experiment configs allow for version control of specific hyperparameters
   # e.g. the best hyperparameters for given model and datamodule
-  - experiment: descm_res_experiment
+  - experiment:  descm_experiment
 
   # config for hyperparameter optimization
   - hparams_search: null
@@ -45,6 +45,8 @@ test: False
 
 # simply provide checkpoint path to resume training
 ckpt_path: null
+
+ckpt_path_test: null
 
 # seed for random number generators in pytorch, numpy and python.random
 seed: 2020

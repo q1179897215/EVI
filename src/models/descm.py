@@ -312,7 +312,6 @@ class DESCM_Embedding_DA_1_1_Base(torch.nn.Module):
         task_fea[0] = ctr_task_fea
         return results[0], results[1], torch.mul(results[0], results[1]), results[2], A_embedding.detach()
     
-
 class DESCM_Embedding_DA_1_1(torch.nn.Module):
     '''
     具体细节见: deconfounder + DA 示意图
@@ -547,6 +546,7 @@ class ESCM(torch.nn.Module):
         expert_dropout: List[float] = [0.3],
         tower_dims: List[int] = [128, 64, 32],
         tower_dropout: List[float] = [0.1, 0.3, 0.3],
+        A_embed_output_dim: int = 0,
     ):
         super().__init__()
         self.embedding_layer = embedding_layer

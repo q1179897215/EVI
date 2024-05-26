@@ -1,4 +1,4 @@
-_target_: src.models.esmm.ESMMLitModel
+_target_: src.models.common.MultiTaskLitModel
 
 # To avoiding copying of loss and metric names, during hydra initialization
 # there is custom resolver which replaces __loss__ to loss.__class__.__name__
