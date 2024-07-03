@@ -7,7 +7,7 @@ defaults:
   - override /data: ccp
   - override /model: descm_model
   - override /callbacks: multi_task_callbacks
-  - override /trainer: gpu096096
+  - override /trainer: gpu
   - override /logger: wandb
 
 # all parameters below will be merged with parameters from default configurations set above

@@ -169,11 +169,31 @@ class MultiTaskCallback(Callback):
 
     def on_train_start(self, trainer, pl_module):
         print("start training teacher")
-
+        
+    def dim_zero_cat(self, x):
+        """Concatenation along the zero dimension."""
+        if isinstance(x, torch.Tensor):
+            return x
+        x = [y.unsqueeze(0) if y.numel() == 1 and y.ndim == 0 else y for y in x]
+        if not x:  # empty list
+            raise ValueError("No samples to concatenate")
+        return torch.cat(x, dim=0)
+    
     def on_test_epoch_end(self, trainer, pl_module):
         self.log("test/ctr_auc", pl_module.ctr_auc.compute())
         self.log("test/cvr_auc", pl_module.cvr_auc.compute())
         self.log("test/ctcvr_auc", pl_module.ctcvr_auc.compute())
+        pctr = self.dim_zero_cat(pl_module.ctr_auc.preds)
+        target =  self.dim_zero_cat(pl_module.ctr_auc.target)
+        m = target.sum()
+        n = len(target) - target.sum()
+        p = m / (m + n)
+        q = m / (m + 2*n)
+        self.log("pctr_mean", pctr.mean())
+        self.log("m", m)
+        self.log('n', n)
+        self.log('p', p)
+        self.log('q', q)
         pl_module.ctr_auc.reset()
         pl_module.cvr_auc.reset()
         pl_module.ctcvr_auc.reset()
@@ -296,6 +316,8 @@ class MultiTaskLitModel(pl.LightningModule):
         self.cvr_auc = BinaryAUROC()
         self.ctcvr_auc = BinaryAUROC()
         self.batch_transform = BatchTransform(batch_type)
+        self.preds = []
+        self.target = []
 
     def training_step(self, batch, batch_idx):
         click, conversion, features = self.batch_transform(batch)
@@ -319,6 +341,7 @@ class MultiTaskLitModel(pl.LightningModule):
         click_pred, conversion_pred, click_conversion_pred, imp_pred, task_feature = self.model(features)
         conversion_pred_filter = conversion_pred[click == 1]
         conversion_filter = conversion[click == 1]
+        click_pred = 0.5 * click_pred / (1-0.5*click_pred)
         self.ctr_auc.update(click_pred, click)
         self.cvr_auc.update(conversion_pred_filter, conversion_filter)
         self.ctcvr_auc.update(click_conversion_pred, click * conversion)
@@ -476,7 +499,8 @@ class Basic_Loss(BasicMultiTaskLoss):
 
         loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
         loss_cvr = torch.mean(loss_cvr*y_ctr)
-        loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean')
+        loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='none')
+        loss_ctr = torch.mean(loss_ctr*y_ctr+2*loss_ctr*(1-y_ctr))
         loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
 
         return loss_ctr, loss_cvr, loss_ctcvr

@@ -23,7 +23,7 @@ model:
 
 
 loss:
-  _target_: src.models.common.DR_VR_Loss
+  _target_: src.models.common.Basic_Loss
   ctr_loss_proportion: 1
   cvr_loss_proportion: 1
   ctcvr_loss_proportion: 0.1

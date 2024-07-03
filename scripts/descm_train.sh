@@ -7,9 +7,9 @@
 
 # nohup python src/train.py -m data=ccp,fr,us,nl,es model.loss._target_=src.models.common.Basic_Loss,src.models.common.Impression_CTR_IPW_Loss,src.models.common.Unclick_CTR_IPW_Loss,src.models.common.Click_CTR_IPW_Loss  experiment=descm_experiment test=True data.debug=False >logs/out.log 2>&1 &
 
-# # python src/train.py -m data=ccp,fr,us,nl,es model.model._target_=src.models.descm.ESCM,src.models.descm.DESCM_Embedding model.loss._target_=src.models.common.Basic_Loss experiment=descm_experiment test=True data.debug=False 
+python src/train.py -m data=fr experiment=descm_experiment test=True data.debug=True logger=csv
 
-# # python src/train.py -m hparams_search=descm_optuna experiment=descm_experiment data.debug=True test=True
+# python src/train.py -m hparams_search=descm_optuna experiment=descm_experiment data.debug=True test=True
 
 nohup python src/train.py \
 -m data=ccp,fr,us,nl,es \
@@ -17,6 +17,7 @@ model._target_=src.models.common.MultiTaskLitModel \
 model.model._target_=src.models.descm.ESCM \
 model.loss._target_=src.models.common.IPS_GPL_Loss,src.models.common.DR_GPL_Loss,src.models.common.MRDR_GPL_Loss,src.models.common.DRMSE_GPL_Loss,src.models.common.IPS_VR_Loss,src.models.common.DR_VR_Loss \
 trainer.max_epochs=1 trainer.min_epochs=1 \
+logger=csv \
 experiment=descm_experiment \
 test=True data.debug=False >logs/out.log 2>&1 & \
 
