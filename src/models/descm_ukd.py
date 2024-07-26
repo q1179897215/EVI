@@ -326,7 +326,7 @@ class CvrStudentMultiTaskLitModel(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters(ignore=['model'])
         # self.automatic_optimization = False
-        self.cvr_teacher = CvrTeacherMultiTaskLitModel.load_from_checkpoint('./logs/train/cvr_teacher_esmm/last.ckpt', model=CvrTeacherMultiTask())
+        self.cvr_teacher = CvrTeacherMultiTaskLitModel.load_from_checkpoint('./logs/train/cvr_teacher_esmm/last.ckpt', model=CvrTeacherMultiTask(embedding_layer=AlldataEmbeddingLayer(batch_type=batch_type)))
         self.cvr_teacher.eval()
         self.cvr_teacher.freeze()
         self.model = model
