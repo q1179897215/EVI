@@ -8,7 +8,7 @@ multi_task_callback:
 model_checkpoint:
   dirpath: ${paths.output_dir}/checkpoints
   filename: ${data.batch_type} + ${model.model._target_} + ${model.loss._target_} + "epoch_{epoch:03d}"
-  monitor: null
+  monitor: val/cvr_auc
   mode: "max"
   save_last: True
-  auto_insert_metric_name: False
+  auto_insert_metric_name: True

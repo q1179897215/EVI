@@ -50,7 +50,7 @@ class XDataset(Dataset):
 class AliExpressDataset(Dataset):
     def __init__(self, dataset_path, debug=False):
         if debug:
-            df = pd.read_hdf(dataset_path, key="df", stop=8000001)
+            df = pd.read_hdf(dataset_path, key="df", stop=100001)
         else:
             df = pd.read_hdf(dataset_path, key="df")
         data = df.to_numpy()[:, 1:]
@@ -157,7 +157,7 @@ class CCPLightningDataModule(L.LightningDataModule):
 
     def val_dataloader(self):
         return DataLoader(
-            self.val_dataset,
+            self.test_dataset,
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
@@ -224,7 +224,7 @@ class INLightningDataModule(L.LightningDataModule):
 
     def val_dataloader(self):
         return DataLoader(
-            self.val_dataset,
+            self.test_dataset,
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
@@ -270,6 +270,12 @@ class ExpressLightningDataModule(L.LightningDataModule):
         )
 
     def val_dataloader(self):
+        # return DataLoader(
+        #     self.test_dataset,
+        #     batch_size=self.batch_size,
+        #     shuffle=False,
+        #     num_workers=self.num_workers,
+        # )
         return None
 
     def test_dataloader(self):

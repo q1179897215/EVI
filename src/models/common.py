@@ -168,7 +168,7 @@ class MultiTaskCallback(Callback):
         super().__init__()
 
     def on_train_start(self, trainer, pl_module):
-        print("start training teacher")
+        print("start training")
         
     def dim_zero_cat(self, x):
         """Concatenation along the zero dimension."""
@@ -179,24 +179,41 @@ class MultiTaskCallback(Callback):
             raise ValueError("No samples to concatenate")
         return torch.cat(x, dim=0)
     
+    def on_validation_epoch_end(self, trainer, pl_module):
+        # judge if a attribute is not None
+
+        if hasattr(pl_module, 'val_ctr_auc'):
+            self.log("val/ctr_auc", pl_module.val_ctr_auc.compute())
+            pl_module.val_ctr_auc.reset()
+        if hasattr(pl_module, 'val_cvr_auc'):
+            self.log("val/cvr_auc", pl_module.val_cvr_auc.compute())
+            pl_module.val_cvr_auc.reset()
+        if hasattr(pl_module, 'val_ctcvr_auc'):
+            self.log("val/ctcvr_auc", pl_module.val_ctcvr_auc.compute())
+            pl_module.val_ctcvr_auc.reset()
+    
+    
     def on_test_epoch_end(self, trainer, pl_module):
-        self.log("test/ctr_auc", pl_module.ctr_auc.compute())
-        self.log("test/cvr_auc", pl_module.cvr_auc.compute())
-        self.log("test/ctcvr_auc", pl_module.ctcvr_auc.compute())
-        pctr = self.dim_zero_cat(pl_module.ctr_auc.preds)
-        target =  self.dim_zero_cat(pl_module.ctr_auc.target)
-        m = target.sum()
-        n = len(target) - target.sum()
-        p = m / (m + n)
-        q = m / (m + 2*n)
-        self.log("pctr_mean", pctr.mean())
-        self.log("m", m)
-        self.log('n', n)
-        self.log('p', p)
-        self.log('q', q)
-        pl_module.ctr_auc.reset()
-        pl_module.cvr_auc.reset()
-        pl_module.ctcvr_auc.reset()
+        if hasattr(pl_module, 'ctr_auc'):
+            self.log("test/ctr_auc", pl_module.ctr_auc.compute())
+            pl_module.ctr_auc.reset()
+        if hasattr(pl_module, 'cvr_auc'):
+            self.log("test/cvr_auc", pl_module.cvr_auc.compute())
+            pl_module.cvr_auc.reset()
+        if hasattr(pl_module, 'ctcvr_auc'):
+            self.log("test/ctcvr_auc", pl_module.ctcvr_auc.compute())
+            pl_module.ctcvr_auc.reset()        
+        # pctr = self.dim_zero_cat(pl_module.ctr_auc.preds)
+        # target =  self.dim_zero_cat(pl_module.ctr_auc.target)
+        # m = target.sum()
+        # n = len(target) - target.sum()
+        # p = m / (m + n)
+        # q = m / (m + 2*n)
+        # self.log("pctr_mean", pctr.mean())
+        # self.log("m", m)
+        # self.log('n', n)
+        # self.log('p', p)
+        # self.log('q', q)
         
 class MultiTaskCallback_Plot(Callback):
     def __init__(
@@ -302,8 +319,6 @@ class MultiTaskCallback_Plot(Callback):
         plt.savefig(self.fig_dir+'/click_pred_test' + '.png', format='png', dpi=300)
         plt.clf()
         
-
-
 class MultiTaskLitModel(pl.LightningModule):
     def __init__(self, model, loss, lr, weight_decay, batch_type):
         super().__init__()
@@ -341,7 +356,6 @@ class MultiTaskLitModel(pl.LightningModule):
         click_pred, conversion_pred, click_conversion_pred, imp_pred, task_feature = self.model(features)
         conversion_pred_filter = conversion_pred[click == 1]
         conversion_filter = conversion[click == 1]
-        click_pred = 0.5 * click_pred / (1-0.5*click_pred)
         self.ctr_auc.update(click_pred, click)
         self.cvr_auc.update(conversion_pred_filter, conversion_filter)
         self.ctcvr_auc.update(click_conversion_pred, click * conversion)
@@ -488,7 +502,7 @@ class CTR_IPW_Loss(BasicMultiTaskLoss):
         loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
         return loss_ctr, loss_cvr, loss_ctcvr
     
-class Basic_Loss(BasicMultiTaskLoss):
+class BasicLoss(BasicMultiTaskLoss):
     def __init__(self, 
                  ctr_loss_proportion: float = 1, 
                  cvr_loss_proportion: float = 1, 
@@ -499,8 +513,7 @@ class Basic_Loss(BasicMultiTaskLoss):
 
         loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
         loss_cvr = torch.mean(loss_cvr*y_ctr)
-        loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='none')
-        loss_ctr = torch.mean(loss_ctr*y_ctr+2*loss_ctr*(1-y_ctr))
+        loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean')
         loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
 
         return loss_ctr, loss_cvr, loss_ctcvr
@@ -557,7 +570,7 @@ class MMoE_Multi_Loss(BasicMultiTaskLoss):
 
         return loss_ctr, loss_cvr, loss_ctcvr
     
-class IPW_Loss(BasicMultiTaskLoss):
+class IpwLoss(BasicMultiTaskLoss):
     def __init__(self, 
                  ctr_loss_proportion: float = 1, 
                  cvr_loss_proportion: float = 1, 

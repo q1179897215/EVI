@@ -7,7 +7,9 @@
 
 # nohup python src/train.py -m data=ccp,fr,us,nl,es model.loss._target_=src.models.common.Basic_Loss,src.models.common.Impression_CTR_IPW_Loss,src.models.common.Unclick_CTR_IPW_Loss,src.models.common.Click_CTR_IPW_Loss  experiment=descm_experiment test=True data.debug=False >logs/out.log 2>&1 &
 
-python src/train.py -m data=fr experiment=descm_experiment test=True data.debug=True logger=csv trainer.max_epochs=2 trainer.min_epochs=2
+python src/train.py -m data=ccp,nl,us,fr,es experiment=descm_multi_experiment test=True data.debug=False model.model._target_=src.models.descm_multi.DescmEmbeddingConcatenation,src.models.descm_multi.DescmEmbeddingBase trainer.max_epochs=1 trainer.min_epochs=1
+
+python src/train.py -m data=fr experiment=descm_multi_experiment test=True data.debug=True logger=csv trainer.max_epochs=5 trainer.min_epochs=5
 
 # python src/train.py -m hparams_search=descm_optuna experiment=descm_experiment data.debug=True test=True
 

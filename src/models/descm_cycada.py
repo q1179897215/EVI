@@ -136,7 +136,6 @@ class DESCM_Embedding_DA_cycada(torch.nn.Module):
         new_embedding = torch.cat((feature_embedding, pctr_embedding, A_embedding), 1)
         results = self.mmoe(new_embedding)
         return pctr.squeeze(1), results[0], torch.mul(pctr.squeeze(1), results[0]), results[1], feature_embedding.detach()
-    
 
 class MultiTaskLitModel_cycada(pl.LightningModule):
     def __init__(self, 
@@ -308,7 +307,6 @@ class MultiTaskLitModel_cycada(pl.LightningModule):
         optimizer_G = torch.optim.Adam(itertools.chain(self.netG_T2S.parameters(), self.model.parameters()), lr=self.lr, weight_decay=self.weight_decay)
         optimizer_D = torch.optim.Adam(itertools.chain(self.netD_S.parameters(), self.netD_T.parameters()), lr=self.lr, weight_decay=self.weight_decay)
         return optimizer_D, optimizer_G
-    
     
 class DESCM_Embedding_DA_cycada_tts(torch.nn.Module):
     '''
