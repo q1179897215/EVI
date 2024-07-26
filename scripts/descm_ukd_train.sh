@@ -7,7 +7,16 @@
 
 # nohup python src/train.py -m data=ccp,fr,us,nl,es model.loss._target_=src.models.common.Basic_Loss,src.models.common.Impression_CTR_IPW_Loss,src.models.common.Unclick_CTR_IPW_Loss,src.models.common.Click_CTR_IPW_Loss  experiment=descm_experiment test=True data.debug=False >logs/out.log 2>&1 &
 
-python src/train.py -m data=ccp experiment=descm_ukd_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1
+python src/train.py \
+-m data=ccp experiment=descm_ukd_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1 \
+
 
 python src/train.py -m data=in experiment=descm_ukd_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1
+
+nohup python src/train.py \
+-m data=in \
+experiment=descm_experiment test=True data.debug=False trainer.max_epochs=5 \
+model._target_=src.models.descm_ukd.CvrTeacherMultiTaskLitModel \
+model.loss._target_=src.models.descm_ukd.BasicLoss \
+model.model._target_=src.models.descm_ukd.CvrTeacherMultiTask >logs/out.log 2>&1 & \
 
