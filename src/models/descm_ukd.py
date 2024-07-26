@@ -590,11 +590,12 @@ class UkdLoss(nn.Module):
 
         loss_cvr_click = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
         loss_cvr_unclick = torch.nn.functional.binary_cross_entropy(p_cvr_1, y_cvr_s, reduction='none')
-        loss_cvr = torch.mean(y_ctr*loss_cvr_click+(1-y_ctr)*loss_cvr_unclick*uncertainty_weights)
+        # loss_cvr = torch.mean(y_ctr*loss_cvr_click+(1-y_ctr)*loss_cvr_unclick*uncertainty_weights)
+        loss_cvr = torch.mean(y_ctr*loss_cvr_click)
         
         loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
         loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean')
         
-        loss = loss_ctr + loss_cvr + loss_ctcvr + kl_div_loss
+        loss = loss_ctr + loss_cvr + 0.1*loss_ctcvr #+ kl_div_loss
 
         return loss
