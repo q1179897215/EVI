@@ -5,7 +5,7 @@
 
 defaults:
   - override /data: ccp
-  - override /model: descm_ukd_model
+  - override /model: descm_new_model
   - override /callbacks: multi_task_callbacks
   - override /trainer: gpu
   - override /logger: wandb
@@ -14,7 +14,7 @@ defaults:
 # this allows you to overwrite only specified parameters
 # "'${model.model.A_embed_output_dim}'"
 # "confounder_dim:'${model.model.confounder_dim}'"
-tags: ["'${seed}'","${data.batch_type}","${model.model._target_}","${model.loss._target_}","${model._target_}"]
+tags: ["${data.batch_type}","${model.model._target_}","${model.loss._target_}","${model._target_}"]
 
 seed: 20
 trainer:
