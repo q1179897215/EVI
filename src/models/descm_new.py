@@ -340,7 +340,7 @@ class CvrTeacherMultiTaskLitModel(pl.LightningModule):
         
         # caculate normal loss
         classification_loss = self.loss.caculate_loss(click_pred, conversion_pred, click_conversion_pred, click, conversion)
-        loss = classification_loss #+ 0.1*da_loss
+        loss = classification_loss + 0.1*da_loss
         self.log("train/loss", loss, on_epoch=True, on_step=True)
         self.log("train/da_loss", da_loss, on_epoch=True, on_step=True)
         self.log("train/classification_loss", classification_loss, on_epoch=True, on_step=True)
