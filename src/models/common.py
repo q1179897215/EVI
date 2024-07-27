@@ -184,25 +184,68 @@ class MultiTaskCallback(Callback):
 
         if hasattr(pl_module, 'val_ctr_auc'):
             self.log("val/ctr_auc", pl_module.val_ctr_auc.compute())
+            pval_ctr = self.dim_zero_cat(pl_module.val_ctr_auc.preds)
+            pval_ctr_target =  self.dim_zero_cat(pl_module.val_ctr_auc.target)
+            self.log("val/ctr_logloss", torch.nn.functional.binary_cross_entropy(pval_ctr, pval_ctr_target))
             pl_module.val_ctr_auc.reset()
         if hasattr(pl_module, 'val_cvr_auc'):
             self.log("val/cvr_auc", pl_module.val_cvr_auc.compute())
+            pval_cvr = self.dim_zero_cat(pl_module.val_cvr_auc.preds)
+            pval_cvr_target =  self.dim_zero_cat(pl_module.val_cvr_auc.target)
+            self.log("val/cvr_logloss", torch.nn.functional.binary_cross_entropy(pval_cvr, pval_cvr_target))
             pl_module.val_cvr_auc.reset()
         if hasattr(pl_module, 'val_ctcvr_auc'):
             self.log("val/ctcvr_auc", pl_module.val_ctcvr_auc.compute())
+            pval_ctcvr = self.dim_zero_cat(pl_module.val_ctcvr_auc.preds)
+            pval_ctcvr_target =  self.dim_zero_cat(pl_module.val_ctcvr_auc.target)
+            self.log("val/ctcvr_logloss", torch.nn.functional.binary_cross_entropy(pval_ctcvr, pval_ctcvr_target))
             pl_module.val_ctcvr_auc.reset()
-    
+        if hasattr(pl_module, 'val_cvr_unclick_auc'):
+            self.log("val/cvr_unclick_auc", pl_module.val_cvr_unclick_auc.compute())
+            pval_cvr_unclick = self.dim_zero_cat(pl_module.val_cvr_unclick_auc.preds)
+            pval_cvr_unclick_target =  self.dim_zero_cat(pl_module.val_cvr_unclick_auc.target)
+            self.log("val/cvr_unclick_logloss", torch.nn.functional.binary_cross_entropy(pval_cvr_unclick, pval_cvr_unclick_target))
+            pl_module.cvr_unclick_auc.reset()
+        if hasattr(pl_module, 'val_cvr_exposure_auc'):
+            self.log("val/cvr_exposure_auc", pl_module.val_cvr_exposure_auc.compute())
+            pval_cvr_exposure = self.dim_zero_cat(pl_module.val_cvr_exposure_auc.preds)
+            pval_cvr_exposure_target =  self.dim_zero_cat(pl_module.val_cvr_exposure_auc.target)
+            self.log("val/cvr_exposure_logloss", torch.nn.functional.binary_cross_entropy(pval_cvr_exposure, pval_cvr_exposure_target))
+            pl_module.val_cvr_exposure_auc.reset()
     
     def on_test_epoch_end(self, trainer, pl_module):
         if hasattr(pl_module, 'ctr_auc'):
             self.log("test/ctr_auc", pl_module.ctr_auc.compute())
+            pctr = self.dim_zero_cat(pl_module.ctr_auc.preds)
+            pctr_target =  self.dim_zero_cat(pl_module.ctr_auc.target)
+            ctr_logloss = torch.nn.functional.binary_cross_entropy(pctr, pctr_target)
+            self.log("test/ctr_logloss", ctr_logloss)
             pl_module.ctr_auc.reset()
         if hasattr(pl_module, 'cvr_auc'):
             self.log("test/cvr_auc", pl_module.cvr_auc.compute())
+            pcvr = self.dim_zero_cat(pl_module.cvr_auc.preds)
+            pcvr_target =  self.dim_zero_cat(pl_module.cvr_auc.target)
+            self.log("test/cvr_logloss", torch.nn.functional.binary_cross_entropy(pcvr, pcvr_target))
             pl_module.cvr_auc.reset()
         if hasattr(pl_module, 'ctcvr_auc'):
             self.log("test/ctcvr_auc", pl_module.ctcvr_auc.compute())
+            pctcvr = self.dim_zero_cat(pl_module.ctcvr_auc.preds)
+            pctcvr_target =  self.dim_zero_cat(pl_module.ctcvr_auc.target)
+            self.log("test/ctcvr_logloss", torch.nn.functional.binary_cross_entropy(pctcvr, pctcvr_target))
             pl_module.ctcvr_auc.reset()        
+        if hasattr(pl_module, 'cvr_unclick_auc'):
+            self.log("test/cvr_unclick_auc", pl_module.cvr_unclick_auc.compute())
+            pcvr_unclick = self.dim_zero_cat(pl_module.cvr_unclick_auc.preds)
+            pcvr_unclick_target =  self.dim_zero_cat(pl_module.cvr_unclick_auc.target)
+            self.log("test/cvr_unclick_logloss", torch.nn.functional.binary_cross_entropy(pcvr_unclick, pcvr_unclick_target))
+            pl_module.cvr_unclick_auc.reset()
+        if hasattr(pl_module, 'cvr_exposure_auc'):
+            self.log("test/cvr_exposure_auc", pl_module.cvr_exposure_auc.compute())
+            pcvr_exposure = self.dim_zero_cat(pl_module.cvr_exposure_auc.preds)
+            pcvr_exposure_target =  self.dim_zero_cat(pl_module.cvr_exposure_auc.target)
+            self.log("test/cvr_exposure_logloss", torch.nn.functional.binary_cross_entropy(pcvr_exposure, pcvr_exposure_target))
+            pl_module.cvr_exposure_auc.reset()
+        
         # pctr = self.dim_zero_cat(pl_module.ctr_auc.preds)
         # target =  self.dim_zero_cat(pl_module.ctr_auc.target)
         # m = target.sum()

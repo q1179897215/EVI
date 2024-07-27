@@ -16,7 +16,7 @@ defaults:
 # "confounder_dim:'${model.model.confounder_dim}'"
 tags: ["'${seed}'","${data.batch_type}","${model.model._target_}","${model.loss._target_}","${model._target_}"]
 
-seed: 2020
+seed: 20
 trainer:
   min_epochs: 1
   max_epochs: 1

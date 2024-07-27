@@ -14,9 +14,9 @@ python src/train.py \
 python src/train.py -m data=in experiment=descm_ukd_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1
 
 nohup python src/train.py \
--m data=in \
-experiment=descm_experiment test=True data.debug=False trainer.max_epochs=5 \
+-m data=ccp \
+experiment=descm_experiment test=True data.debug=False trainer.max_epochs=1 \
 model._target_=src.models.descm_ukd.CvrTeacherMultiTaskLitModel \
-model.loss._target_=src.models.descm_ukd.BasicLoss \
+model.loss._target_=src.models.descm_ukd.CvrTeacherMultiTaskLoss \
 model.model._target_=src.models.descm_ukd.CvrTeacherMultiTask >logs/out.log 2>&1 & \
 
