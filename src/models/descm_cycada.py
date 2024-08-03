@@ -494,7 +494,7 @@ class MultiTaskLitModel_cycada_tts(pl.LightningModule):
         loss_G = loss_G_S2T + loss_G_T2S + loss_cycle_S + loss_cycle_T + \
                  loss_identity_S + loss_identity_T + loss_semantic_S2T + loss_semantic_T2S + task_loss
         
-        self.manual_backward(loss_G, retain_graph=True)
+        
         optimizer_G.step()
         optimizer_G.zero_grad()
         self.untoggle_optimizer(optimizer_G)

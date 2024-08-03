@@ -66,10 +66,43 @@ class MultiLayerPerceptron(torch.nn.Module):
         self.mlp = torch.nn.Sequential(*layers)
 
     def forward(self, x):
-        """
-        :param x: Float tensor of size ``(batch_size, embed_dim)``
-        """
         return self.mlp(x)
+
+    
+class MlpLayerFea(torch.nn.Module):
+    def __init__(
+        self,
+        input_dim,
+        embed_dims,
+        dropout,
+        drop_last_dropout=False,
+        output_layer=True,
+    ):
+        super().__init__()
+        layers = []
+        for i, embed_dim in enumerate(embed_dims):
+            layers.extend((torch.nn.Linear(input_dim, embed_dim), torch.nn.ReLU()))
+            if dropout[i] > 0:
+                layers.append(torch.nn.Dropout(p=dropout[i]))
+            input_dim = embed_dim
+        if drop_last_dropout == True:
+            layers.pop()
+        if output_layer:
+            layers.append(torch.nn.Linear(input_dim, 1))
+        self.layers = torch.nn.Sequential(*layers)
+
+    def forward(self, x):
+        # forward x layer by layer
+        layer_output = []
+        for i in range(0, len(self.layers), 2):
+            x = self.layers[i](x)
+            x = self.layers[i+1](x)
+            layer_output.append(x)
+        if len(self.layers) % 2 == 1:
+            layer_output.append(self.layers[i+2](x))
+        return layer_output
+    
+
 
 
 class AlldataEmbeddingLayer(torch.nn.Module):

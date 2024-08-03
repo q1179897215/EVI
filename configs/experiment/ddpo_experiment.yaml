@@ -5,7 +5,7 @@
 
 defaults:
   - override /data: ccp
-  - override /model: descm_new_model
+  - override /model: ddpo_model
   - override /callbacks: multi_task_callbacks
   - override /trainer: gpu
   - override /logger: wandb
@@ -16,7 +16,7 @@ defaults:
 # "confounder_dim:'${model.model.confounder_dim}'"
 tags: ["${data.batch_type}","${model.model._target_}","${model.loss._target_}","${model._target_}"]
 
-seed: 20
+seed: 2020
 trainer:
   min_epochs: 1
   max_epochs: 1

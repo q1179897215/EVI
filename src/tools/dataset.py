@@ -157,7 +157,7 @@ class CCPLightningDataModule(L.LightningDataModule):
 
     def val_dataloader(self):
         # return DataLoader(
-        #     self.val_dataset,
+        #     self.test_dataset,
         #     batch_size=self.batch_size,
         #     shuffle=False,
         #     num_workers=self.num_workers,
@@ -224,13 +224,14 @@ class INLightningDataModule(L.LightningDataModule):
         )
 
     def val_dataloader(self):
-        return DataLoader(
-            self.test_dataset,
-            batch_size=self.batch_size,
-            shuffle=False,
-            num_workers=self.num_workers,
-            # persistent_workers=True,
-        )
+        # return DataLoader(
+        #     self.test_dataset,
+        #     batch_size=self.batch_size,
+        #     shuffle=False,
+        #     num_workers=self.num_workers,
+        #     # persistent_workers=True,
+        # )
+        return None
 
     def test_dataloader(self):
         return DataLoader(
