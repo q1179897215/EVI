@@ -928,10 +928,12 @@ class CvrAllSpaceMultiTaskLoss(nn.Module):
                  ctr_loss_proportion: float = 1, 
                  cvr_loss_proportion: float = 1, 
                  ctcvr_loss_proportion: float = 0.1,
-                 unclick_space_loss_proportion: float = 0.5,
+                 unclick_space_loss_proportion: float = 0.2,
                  ):
         super().__init__()
         self.unclick_space_loss_proportion = unclick_space_loss_proportion
+        self.ctr_loss_proportion =  ctr_loss_proportion
+        self.ctcvr_loss_proportion = ctcvr_loss_proportion
     
     def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr):
         pctr_clamp = torch.clamp(p_ctr.detach(), 0.001, 1-0.001)
@@ -944,5 +946,5 @@ class CvrAllSpaceMultiTaskLoss(nn.Module):
         loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_cvr, reduction='none')
         loss_ctcvr = torch.mean(loss_ctcvr)
         loss_ctcvr2 = torch.nn.functional.binary_cross_entropy(p_cvr*p_ctr, y_cvr, reduction='mean')
-        loss = loss_ctr + loss_cvr + loss_ctcvr + 0.1 * loss_ctcvr2
+        loss = self.ctr_loss_proportion*loss_ctr + loss_cvr + self.ctcvr_loss_proportion*loss_ctcvr + 0.1 * loss_ctcvr2
         return loss
