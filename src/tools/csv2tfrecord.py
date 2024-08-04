@@ -6,6 +6,8 @@ import torch
 from dataset import RecIterableDataset
 from tfrecord.torch.dataset import TFRecordDataset
 from torch.utils.data import DataLoader
+import rootutils
+root = rootutils.setup_root(__file__, dotenv=True, pythonpath=True, cwd=True)
 
 
 def convert_csv_to_tfrecord(csv_path, tf_path, config, val_ratio=-1, val_tf_path=None, seed=0):
@@ -31,20 +33,20 @@ def convert_csv_to_tfrecord(csv_path, tf_path, config, val_ratio=-1, val_tf_path
 
 
 if __name__ == "__main__":
-    train_csv_path = "../data/train.csv"
-    train_tf_path = "../data1/train.tfrecord"
-    train_index_path = "../data1/train.tfindex"
-    val_tf_path = "../data1/val.tfrecord"
-    val_index_path = "../data1/val.tfindex"
-    test_csv_path = "../data/test.csv"
-    test_tf_path = "../data1/test.tfrecord"
-    test_index_path = "../data1/test.tfindex"
+    train_csv_path = "../data2/train.csv"
+    train_tf_path = "../data/train.tfrecord"
+    train_index_path = "../data/train.tfindex"
+    val_tf_path = "../data/val.tfrecord"
+    val_index_path = "../data/val.tfindex"
+    test_csv_path = "../data2/test.csv"
+    test_tf_path = "../data/test.tfrecord"
+    test_index_path = "../data/test.tfindex"
 
     # using_feature_ids = [str(i) for i in range(333)]
-    # using_feature_ids = ['322', '320', '329', '328', '331', '319', '321', '302', '324', '323', '325', '332', '301', '326', '300', '303', '307', '330', '310', '311', '309', '312', '308', '299', '305', '304', '306', '327', '290', '291', '298', '313', '289', '294', '297', '296', '293', '295', '318', '314', '287', '288', '315', '276', '273', '274', '275', '279', '277', '292', '272', '316', '278', '271', '280', '317', '282', '281', '270', '283', '284', '268', '267', '269', '286', '265', '261', '266', '285', '262', '264', '170', '168', '142', '169', '171', '161', '167', '162', '151', '263', '144', '164', '143', '153', '172', '163', '155', '156', '159', '160', '145', '152', '157', '166', '245', '165', '150', '250', '260']
-    using_feature_ids = [str(i) for i in range(330)]
+    using_feature_ids = ['322', '320', '329', '328', '31', '319', '321', '302', '324', '323', '325', '32', '301', '326', '300', '303', '307', '33', '310', '311', '309', '312', '308', '299', '305', '304', '306', '327', '290', '291', '298', '313', '289', '294', '297', '296', '293', '100', '318', '314', '287', '288', '315', '276', '273', '274', '275', '279', '277', '292', '272', '316', '278', '271', '280', '317', '282', '281', '270', '283', '284', '268', '267', '269', '286', '265', '261', '266', '285', '262', '264', '170', '168', '142', '169', '171', '161', '167', '162', '151', '263', '144', '164', '143', '153', '172', '163', '155', '156', '159', '160', '145', '152', '157', '166', '245', '165', '150', '250', '260']
+    # using_feature_ids = [str(i) for i in range(330)]
     # print('295' in using_feature_ids)
-    using_feature_ids.pop(295)
+    # using_feature_ids.pop(295)
     # print('295' in using_feature_ids)
 
     config = dict(
@@ -53,20 +55,24 @@ if __name__ == "__main__":
         feature_names=[i for i in range(len(using_feature_ids))],
         features_num=len(using_feature_ids),
     )
-    convert_csv_to_tfrecord(
-        train_csv_path, train_tf_path, config, val_ratio=0.01, val_tf_path=val_tf_path, seed=2020
-    )
+    print('start')
+    # convert_csv_to_tfrecord(
+    #     train_csv_path, train_tf_path, config, val_ratio=0.01, val_tf_path=val_tf_path, seed=2020
+    # )
+    
+    # print('finish train')
     convert_csv_to_tfrecord(
         test_csv_path, test_tf_path, config, val_ratio=-1, val_tf_path="../data/tmp.tfrecord"
     )
-    convert_csv_to_tfrecord(
-        train_csv_path,
-        "../data/tmp.tfrecord",
-        config,
-        val_ratio=0.01,
-        val_tf_path="../data/tmp_val.tfrecord",
-        seed=2020,
-    )
+    print('finish test')
+    # convert_csv_to_tfrecord(
+    #     train_csv_path,
+    #     "../data/tmp.tfrecord",
+    #     config,
+    #     val_ratio=0.01,
+    #     val_tf_path="../data/tmp_val.tfrecord",
+    #     seed=20
+    # )
 
     # description = {'click':'int', 'conversion':'int', 'features':'int'}
     # train_dataset = TFRecordDataset(test_tf_path,
