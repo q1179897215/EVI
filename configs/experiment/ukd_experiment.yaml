@@ -5,7 +5,7 @@
 
 defaults:
   - override /data: ccp
-  - override /model: descm_ukd_model
+  - override /model: ukd_model
   - override /callbacks: multi_task_callbacks
   - override /trainer: gpu
   - override /logger: wandb

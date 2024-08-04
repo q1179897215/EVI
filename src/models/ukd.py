@@ -347,42 +347,6 @@ class CvrTeacherMultiTaskLoss(nn.Module):
         loss = loss_ctr + loss_cvr
         return loss
 
-class CvrTeacherIpsLoss(nn.Module):
-    def __init__(self, 
-                 ctr_loss_proportion: float = 1, 
-                 cvr_loss_proportion: float = 1, 
-                 ctcvr_loss_proportion: float = 0.1,
-                 ):
-        super().__init__()
-    
-    
-    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr):
-        p_ctr_clip = torch.clamp(p_ctr.detach(), 1e-7, 1-1e-7)
-        ips = 1 / p_ctr_clip
-        loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean')
-        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
-        loss_cvr = torch.mean(loss_cvr*y_ctr*ips)
-        loss = loss_ctr + loss_cvr
-        return loss
-    
-class BasicLoss(BasicMultiTaskLoss):
-    def __init__(self, 
-                 ctr_loss_proportion: float = 1, 
-                 cvr_loss_proportion: float = 1, 
-                 ctcvr_loss_proportion: float = 0.1,
-                 ):
-        super().__init__(ctr_loss_proportion, cvr_loss_proportion, ctcvr_loss_proportion)
-    
-    
-    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr, kwargs):
-        loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean')
-        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
-        loss_cvr = torch.mean(loss_cvr*y_ctr)
-        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='none')
-        loss_ctcvr = torch.mean(loss_ctcvr)
-
-        return loss_ctr, loss_cvr, loss_ctcvr
-    
 class CvrTeacherSingleTaskLoss(nn.Module):
     def __init__(self, 
                  ctr_loss_proportion: float = 1, 
@@ -397,6 +361,7 @@ class CvrTeacherSingleTaskLoss(nn.Module):
         loss_cvr = torch.mean(loss_cvr*y_ctr)
 
         return loss_cvr
+    
 class CvrTeacherSingleTask(torch.nn.Module):
     def __init__(
         self,
@@ -434,7 +399,7 @@ class CvrTeacherSingleTask(torch.nn.Module):
         feature_embedding = self.embedding_layer(x)
         results, task_fea, tower_fea = self.mmoe(feature_embedding)
         return results[0], feature_embedding, task_fea[0], tower_fea[0]
-    
+
 class CvrTeacherSingleTaskLitModel(pl.LightningModule):
     '''
     Teacher DA Training
@@ -471,8 +436,6 @@ class CvrTeacherSingleTaskLitModel(pl.LightningModule):
         real_T = target_representations
         da_loss = self.da_loss(real_S, real_T)
         da_acc = self.da_loss.domain_discriminator_accuracy
-        
-        
         # caculate normal loss
         classification_loss = self.loss.caculate_loss(conversion_pred, click, conversion)
         loss = classification_loss + 0.1*da_loss
@@ -731,7 +694,7 @@ class CvrStudentMultiTaskLoss(nn.Module):
         
         return kl_div
 
-    def caculate_loss(self, p_ctr, p_cvr, p_cvr_1, p_ctcvr, y_ctr, y_cvr, y_cvr_s):
+    def caculate_loss(self, p_ctr, p_cvr, p_cvr_1, p_ctcvr, y_ctr, y_cvr, y_cvr_t):
         
         kl_div = self.kl_divergence(p_cvr, p_cvr_1)
         uncertainty_weights = torch.exp(-self.uncertainty_ratio*kl_div.detach())
@@ -739,12 +702,8 @@ class CvrStudentMultiTaskLoss(nn.Module):
         kl_div_loss = torch.mean(kl_div)
 
         loss_cvr_click = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
-        loss_cvr_unclick = torch.nn.functional.binary_cross_entropy(p_cvr_1, y_cvr_s, reduction='none')
+        loss_cvr_unclick = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr_t, reduction='none')
         loss_cvr = torch.mean(y_ctr*loss_cvr_click + 0.5*(1-y_ctr)*uncertainty_weights*loss_cvr_unclick)
-        # loss_cvr = torch.mean(y_ctr*loss_cvr_click + 0.5*(1-y_ctr)*loss_cvr_unclick)
-        # loss_cvr = torch.mean(y_ctr*loss_cvr_click)
-        
-        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_ctr * y_cvr, reduction='mean')
         
         loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean')
         

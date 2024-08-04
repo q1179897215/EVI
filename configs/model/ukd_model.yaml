@@ -1,4 +1,4 @@
-_target_: src.models.descm_ukd.CvrStudentMultiTaskLitModel
+_target_: src.models.ukd.CvrTeacherMultiTaskLitModel
 
 # To avoiding copying of loss and metric names, during hydra initialization
 # there is custom resolver which replaces __loss__ to loss.__class__.__name__
@@ -8,7 +8,7 @@ _target_: src.models.descm_ukd.CvrStudentMultiTaskLitModel
 # grammar problems with hydra config parser.
 
 model:
-  _target_: src.models.descm_ukd.CvrStudentMultiTask
+  _target_: src.models.ukd.CvrTeacherMultiTask
   embedding_layer:
     _target_: src.models.common.AlldataEmbeddingLayer
     batch_type: ${data.batch_type}
@@ -22,7 +22,7 @@ model:
 
 
 loss:
-  _target_: src.models.descm_ukd.CvrStudentMultiTaskLoss
+  _target_: src.models.ukd.CvrTeacherMultiTaskLoss
   ctr_loss_proportion: 1
   cvr_loss_proportion: 1
   ctcvr_loss_proportion: 0.1
