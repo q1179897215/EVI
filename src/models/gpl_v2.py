@@ -282,6 +282,7 @@ class MrdrGplLoss(nn.Module):
     def __init__(self, 
                  ctr_loss_proportion: float = 1, 
                  cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
                  bias_var_trade_off: float = 0.5,
                  strength_trade_off: float = 1,
                  ):
@@ -317,6 +318,7 @@ class DrV2Loss(nn.Module):
     def __init__(self, 
                  ctr_loss_proportion: float = 1, 
                  cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
                  ):
         super().__init__()
         self.ctr_loss_proportion = ctr_loss_proportion
