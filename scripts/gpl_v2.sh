@@ -7,15 +7,11 @@
 
 # nohup python src/train.py -m data=ccp,fr,us,nl,es model.loss._target_=src.models.common.Basic_Loss,src.models.common.Impression_CTR_IPW_Loss,src.models.common.Unclick_CTR_IPW_Loss,src.models.common.Click_CTR_IPW_Loss  experiment=descm_experiment test=True data.debug=False >logs/out.log 2>&1 &
 
-nohup python src/train.py -m data=ccp,fr,us,es,nl experiment=new_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1 model.loss.ctr_loss_proportion=0.2 model.loss.ctcvr_loss_proportion=0.2 model.mi_ratio=5.0 >logs/out.log 2>&1 &
-
-
-python src/train.py -m data=in experiment=descm_ukd_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1
 
 nohup python src/train.py \
--m data=ccp \
-experiment=descm_experiment test=True data.debug=False trainer.max_epochs=1 \
-model._target_=src.models.descm_ukd.CvrTeacherMultiTaskLitModel \
-model.loss._target_=src.models.descm_ukd.CvrTeacherMultiTaskLoss \
-model.model._target_=src.models.descm_ukd.CvrTeacherMultiTask >logs/out.log 2>&1 & \
+-m data=ccp,fr,us,nl,es experiment=gpl_v2_experiment test=True data.debug=False model.loss._target_=src.models.gpl_v2.MrdrGplLoss,src.models.gpl_v2.DrV2Loss,src.models.gpl_v2.EsmmLoss,src.models.gpl_v2.IpwLoss,src.models.gpl_v2.DrLoss trainer.max_epochs=1 trainer.min_epochs=1 >logs/out.log 2>&1 & \
+
+python src/train.py \
+-m data=in experiment=gpl_v2_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1 \
+
 

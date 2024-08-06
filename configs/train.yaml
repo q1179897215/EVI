@@ -16,7 +16,7 @@ defaults:
 
   # experiment configs allow for version control of specific hyperparameters
   # e.g. the best hyperparameters for given model and datamodule
-  - experiment:  ukd_experiment
+  - experiment:  gpl_v2_experiment
 
   # config for hyperparameter optimization
   - hparams_search: null
