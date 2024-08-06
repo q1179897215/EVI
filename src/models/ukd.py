@@ -333,18 +333,19 @@ class CvrTeacherMultiTaskLitModel(pl.LightningModule):
 
 class CvrTeacherMultiTaskLoss(nn.Module):
     def __init__(self, 
-                 ctr_loss_proportion: float = 1, 
+                 ctr_loss_proportion: float = 0.0, 
                  cvr_loss_proportion: float = 1, 
-                 ctcvr_loss_proportion: float = 0.1,
                  ):
         super().__init__()
+        self.ctr_loss_proportion = 0.0
+        self.cvr_loss_proportion = cvr_loss_proportion
     
     
     def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr):
         loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean')
         loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
         loss_cvr = torch.mean(loss_cvr*y_ctr)
-        loss = loss_ctr + loss_cvr
+        loss = self.ctr_loss_proportion*loss_ctr + self.cvr_loss_proportion*loss_cvr
         return loss
 
 class CvrTeacherSingleTaskLoss(nn.Module):
@@ -620,7 +621,8 @@ class CvrStudentMultiTaskLitModel(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters(ignore=['model'])
         # self.automatic_optimization = False
-        self.cvr_teacher = CvrTeacherMultiTaskLitModel.load_from_checkpoint('./logs/train/multiruns/ukd_teacher/ccp_multi.ckpt', model=CvrTeacherMultiTask(embedding_layer=AlldataEmbeddingLayer(batch_type=batch_type)))
+        cvr_teacher_path = './logs/train/multiruns/ukd_teacher/' +  batch_type + '/checkpoints/last.ckpt'
+        self.cvr_teacher = CvrTeacherMultiTaskLitModel.load_from_checkpoint(cvr_teacher_path, model=CvrTeacherMultiTask(embedding_layer=AlldataEmbeddingLayer(batch_type=batch_type)))
         self.cvr_teacher.eval()
         self.cvr_teacher.freeze()
         self.model = model
@@ -644,7 +646,7 @@ class CvrStudentMultiTaskLitModel(pl.LightningModule):
         click_pred_teacher, conversion_pred_teacher, click_conversion_pred_teacher,feature_embedding_teacher, task_fea_teacher, tower_fea_teacher = self.cvr_teacher.model(features)
 
         # caculate normal loss
-        loss = self.loss.caculate_loss(click_pred, conversion_pred, conversion_pred_1,click_conversion_pred, click, conversion, conversion_pred_teacher)
+        loss = self.loss.caculate_loss(click_pred, conversion_pred, conversion_pred_1, click_conversion_pred, click, conversion, conversion_pred_teacher)
         self.log("train/loss", loss, on_epoch=True, on_step=True)
         
         return loss
@@ -665,7 +667,8 @@ class CvrStudentMultiTaskLitModel(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         click, conversion, features = self.batch_transform(batch)
-        click_pred, conversion_pred, click_conversion_pred, conversion_pred_1,feature_embedding, task_fea, tower_fea = self.model(features)
+        click_pred, conversion_pred_0, click_conversion_pred, conversion_pred_1, feature_embedding, task_fea, tower_fea = self.model(features)
+        conversion_pred = (conversion_pred_0 + conversion_pred_1) / 2.0
         self.ctr_auc.update(click_pred, click)
         self.cvr_auc.update(conversion_pred[click == 1], conversion[click == 1])
         self.ctcvr_auc.update(click_conversion_pred, click * conversion)
@@ -679,13 +682,14 @@ class CvrStudentMultiTaskLitModel(pl.LightningModule):
         
 class CvrStudentMultiTaskLoss(nn.Module):
     def __init__(self, 
-                 ctr_loss_proportion: float = 1, 
-                 cvr_loss_proportion: float = 1, 
-                 ctcvr_loss_proportion: float = 0.1,
-                 uncertainty_ratio: float = 1,
+                 ctr_loss_proportion: float = 0.2, 
+                 cvr_loss_proportion: float = 1.0, 
+                 uncertainty_ratio: float = 100,
                  ):
         super().__init__()
         self.uncertainty_ratio = uncertainty_ratio
+        self.ctr_loss_proportion = ctr_loss_proportion
+        self.cvr_loss_proportion = cvr_loss_proportion
         
     def kl_divergence(self, p, q, epsilon=1e-6):
         p = torch.clamp(p, epsilon, 1.0 - epsilon)
@@ -696,17 +700,23 @@ class CvrStudentMultiTaskLoss(nn.Module):
 
     def caculate_loss(self, p_ctr, p_cvr, p_cvr_1, p_ctcvr, y_ctr, y_cvr, y_cvr_t):
         
-        kl_div = self.kl_divergence(p_cvr, p_cvr_1)
-        uncertainty_weights = torch.exp(-self.uncertainty_ratio*kl_div.detach())
+        kl_div_0 = self.kl_divergence(p_cvr, p_cvr_1)
+        kl_div_1 = self.kl_divergence(p_cvr_1, p_cvr)
+        uncertainty_weights_0 = torch.exp(-self.uncertainty_ratio*kl_div_0.detach())
+        uncertainty_weights_1 = torch.exp(-self.uncertainty_ratio*kl_div_1.detach())
         
-        kl_div_loss = torch.mean(kl_div)
+        kl_div_loss_0 = torch.mean(kl_div_0)
+        kl_div_loss_1 = torch.mean(kl_div_1)
 
-        loss_cvr_click = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
-        loss_cvr_unclick = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr_t, reduction='none')
-        loss_cvr = torch.mean(y_ctr*loss_cvr_click + 0.5*(1-y_ctr)*uncertainty_weights*loss_cvr_unclick)
+        loss_cvr_click_0 = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        loss_cvr_unclick_0 = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr_t, reduction='none')
+        loss_cvr_click_1 = torch.nn.functional.binary_cross_entropy(p_cvr_1, y_cvr, reduction='none')
+        loss_cvr_unclick_1 = torch.nn.functional.binary_cross_entropy(p_cvr_1, y_cvr_t, reduction='none')
+        loss_cvr_0 = torch.mean(y_ctr*loss_cvr_click_0 + 0.5*(1-y_ctr)*uncertainty_weights_0*loss_cvr_unclick_0)
+        loss_cvr_1 = torch.mean(y_ctr*loss_cvr_click_1 + 0.5*(1-y_ctr)*uncertainty_weights_1*loss_cvr_unclick_1)
         
         loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean')
         
-        loss = loss_ctr + loss_cvr + kl_div_loss
+        loss = self.ctr_loss_proportion*loss_ctr + self.ctr_loss_proportion*(loss_cvr_0 + loss_cvr_1) + kl_div_loss_0 + kl_div_loss_1
 
         return loss
