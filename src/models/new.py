@@ -859,7 +859,7 @@ class NewMiLitModel(pl.LightningModule):
         vids_loss_2 = torch.mean(torch.log(self.var_2) + torch.square(teacher_layers[2] - student_layer_mean_2) / self.var_2) / 2.0
         
         if self.info_layer_num == 0.0:
-            vids_loss_0 = 0.0
+            vids_loss = 0.0
         elif self.info_layer_num == 1.0:
             vids_loss = vids_loss_2
         elif self.info_layer_num == 2.0:
