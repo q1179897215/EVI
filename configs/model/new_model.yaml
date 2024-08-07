@@ -36,7 +36,7 @@ batch_type: ${data.batch_type}
 
 mi_ratio: 0.8
 var_ratio: 5.0
-
+info_layer_num: 3.0
 # embedding:
 
 #     embedding_size = 5,
