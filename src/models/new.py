@@ -644,7 +644,6 @@ class DdpoConFea(torch.nn.Module):
         return results, tower_fea, tower_fea
 
 
-   
 class New(torch.nn.Module):
     def __init__(
         self,
@@ -839,24 +838,25 @@ class NewMiLitModel(pl.LightningModule):
         results, feature_embedding, task_fea, tower_fea = self.model(features)
         click_pred, conversion_pred, click_conversion_pred = results[0], results[1], results[2]
         
-        teacher_layers = tower_fea[2]
-        student_layers = tower_fea[1]
-        
-        student_layer_mean_0 = self.mean_layer_0(student_layers[0])
-        student_layer_mean_1 = self.mean_layer_1(student_layers[1])
-        student_layer_mean_2 = self.mean_layer_2(student_layers[2])
-        
-        # student_layer_var_0 = self.var_layer_0(student_layers[0])
-        # student_layer_var_1 = self.var_layer_1(student_layers[1])
-        # student_layer_var_2 = self.var_layer_2(student_layers[2])
-        
-        # vids_loss_0 = torch.mean(torch.log(student_layer_var_0) + torch.square(teacher_layers[0] - student_layer_mean_0) / student_layer_var_0) / 2.0
-        # vids_loss_1 = torch.mean(torch.log(student_layer_var_1) + torch.square(teacher_layers[1] - student_layer_mean_1) / student_layer_var_1) / 2.0
-        # vids_loss_2 = torch.mean(torch.log(student_layer_var_2) + torch.square(teacher_layers[2] - student_layer_mean_2) / student_layer_var_2) / 2.0
-        
-        vids_loss_0 = torch.mean(torch.log(self.var_0) + torch.square(teacher_layers[0] - student_layer_mean_0) / self.var_0) / 2.0
-        vids_loss_1 = torch.mean(torch.log(self.var_1) + torch.square(teacher_layers[1] - student_layer_mean_1) / self.var_1) / 2.0
-        vids_loss_2 = torch.mean(torch.log(self.var_2) + torch.square(teacher_layers[2] - student_layer_mean_2) / self.var_2) / 2.0
+        if self.info_layer_num != 0.0:
+            teacher_layers = tower_fea[2]
+            student_layers = tower_fea[1]
+            
+            student_layer_mean_0 = self.mean_layer_0(student_layers[0])
+            student_layer_mean_1 = self.mean_layer_1(student_layers[1])
+            student_layer_mean_2 = self.mean_layer_2(student_layers[2])
+            
+            # student_layer_var_0 = self.var_layer_0(student_layers[0])
+            # student_layer_var_1 = self.var_layer_1(student_layers[1])
+            # student_layer_var_2 = self.var_layer_2(student_layers[2])
+            
+            # vids_loss_0 = torch.mean(torch.log(student_layer_var_0) + torch.square(teacher_layers[0] - student_layer_mean_0) / student_layer_var_0) / 2.0
+            # vids_loss_1 = torch.mean(torch.log(student_layer_var_1) + torch.square(teacher_layers[1] - student_layer_mean_1) / student_layer_var_1) / 2.0
+            # vids_loss_2 = torch.mean(torch.log(student_layer_var_2) + torch.square(teacher_layers[2] - student_layer_mean_2) / student_layer_var_2) / 2.0
+            
+            vids_loss_0 = torch.mean(torch.log(self.var_0) + torch.square(teacher_layers[0] - student_layer_mean_0) / self.var_0) / 2.0
+            vids_loss_1 = torch.mean(torch.log(self.var_1) + torch.square(teacher_layers[1] - student_layer_mean_1) / self.var_1) / 2.0
+            vids_loss_2 = torch.mean(torch.log(self.var_2) + torch.square(teacher_layers[2] - student_layer_mean_2) / self.var_2) / 2.0
         
         if self.info_layer_num == 0.0:
             vids_loss = 0.0
@@ -911,8 +911,9 @@ class NewMiLitModel(pl.LightningModule):
 
     def configure_optimizers(self):    
         # define optimizer and lr scheduler
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         return optimizer
+
 
 class NewMultiTaskLoss(nn.Module):
     def __init__(self, 

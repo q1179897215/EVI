@@ -23,7 +23,7 @@ model:
 
 loss:
   _target_: src.models.new.CvrAllSpaceMultiTaskLoss
-  ctr_loss_proportion: 0.2
+  ctr_loss_proportion: 1.0
   cvr_loss_proportion: 1.0
   ctcvr_loss_proportion: 0.2
   unclick_space_loss_proportion: 0.2
