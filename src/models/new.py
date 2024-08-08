@@ -667,7 +667,7 @@ class New(torch.nn.Module):
         self.tower_dims = tower_dims
         self.tower_dropout = tower_dropout
 
-        self.extractor_and_predictor = NewMmoeOuterProductLayerFea(
+        self.extractor_and_predictor = MmoeFea(
             input_dim=self.embed_output_dim,
             expert_num=self.expert_num,
             task_num=self.task_num,
@@ -849,6 +849,10 @@ class NewMiLitModel(pl.LightningModule):
             # student_layer_var_0 = self.var_layer_0(student_layers[0])
             # student_layer_var_1 = self.var_layer_1(student_layers[1])
             # student_layer_var_2 = self.var_layer_2(student_layers[2])
+            
+            # student_layer_var_0 = torch.nn.functional.softplus(student_layer_var_0) + 1e-3
+            # student_layer_var_1 = torch.nn.functional.softplus(student_layer_var_1) + 1e-3
+            # student_layer_var_2 = torch.nn.functional.softplus(student_layer_var_2) + 1e-3
             
             # vids_loss_0 = torch.mean(torch.log(student_layer_var_0) + torch.square(teacher_layers[0] - student_layer_mean_0) / student_layer_var_0) / 2.0
             # vids_loss_1 = torch.mean(torch.log(student_layer_var_1) + torch.square(teacher_layers[1] - student_layer_mean_1) / student_layer_var_1) / 2.0
