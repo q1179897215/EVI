@@ -340,3 +340,30 @@ class DrV2Loss(nn.Module):
         
         loss = self.ctr_loss_proportion*loss_ctr + self.cvr_loss_proportion*loss_cvr
         return loss
+    
+class BasicLoss(nn.Module):
+    def __init__(self, 
+                 ctr_loss_proportion: float = 1, 
+                 cvr_loss_proportion: float = 1, 
+                 ctcvr_loss_proportion: float = 0.1,
+                 ):
+        super().__init__()
+        self.ctr_loss_proportion = ctr_loss_proportion
+        self.cvr_loss_proportion = cvr_loss_proportion
+    def caculate_loss(self, p_ctr, p_cvr, p_imp, y_ctr, y_cvr):
+        p_ctr_clip = torch.clamp(p_ctr, 1e-7, 1-1e-7)
+        ips = y_ctr / p_ctr_clip
+        loss_cvr = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
+        imp_error = torch.abs(p_imp-loss_cvr) 
+        imp_error_2 = imp_error * imp_error
+        bmse = (ips - (1-y_ctr) / (1 - p_ctr_clip))*p_cvr
+        bmse = torch.mean(bmse)
+        bmse = torch.sqrt(bmse * bmse)
+        
+        loss_cvr = torch.mean(p_imp+ips*imp_error+ips*imp_error_2) + 0.5*bmse
+
+
+        loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean')
+        
+        loss = self.ctr_loss_proportion*loss_ctr + self.cvr_loss_proportion*loss_cvr
+        return loss

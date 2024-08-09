@@ -667,7 +667,7 @@ class New(torch.nn.Module):
         self.tower_dims = tower_dims
         self.tower_dropout = tower_dropout
 
-        self.extractor_and_predictor = MmoeFea(
+        self.extractor_and_predictor = NewMmoeOuterProductLayerFea(
             input_dim=self.embed_output_dim,
             expert_num=self.expert_num,
             task_num=self.task_num,
@@ -676,7 +676,7 @@ class New(torch.nn.Module):
             expert_dropout=self.expert_dropout,
             tower_dropout=self.tower_dropout,
         )
-    
+
         
     def forward(self, x):
         feature_embedding = self.embedding_layer(x)
@@ -804,9 +804,9 @@ class NewMiLitModel(pl.LightningModule):
         self.val_ctcvr_auc = BinaryAUROC()
         
         self.d = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.alpha_0 = torch.nn.Parameter(torch.tensor([var_ratio] * 128)).to(self.d)
-        self.alpha_1 = torch.nn.Parameter(torch.tensor([var_ratio] * 64)).to(self.d)
-        self.alpha_2 = torch.nn.Parameter(torch.tensor([var_ratio] * 32)).to(self.d)
+        self.alpha_0 = torch.nn.Parameter(torch.tensor([5.0] * 128)).to(self.d)
+        self.alpha_1 = torch.nn.Parameter(torch.tensor([5.0] * 64)).to(self.d)
+        self.alpha_2 = torch.nn.Parameter(torch.tensor([5.0] * 32)).to(self.d)
         self.var_0 = torch.nn.functional.softplus(self.alpha_0) + 1e-3
         self.var_1 = torch.nn.functional.softplus(self.alpha_1) + 1e-3
         self.var_2 = torch.nn.functional.softplus(self.alpha_2) + 1e-3
@@ -814,9 +814,7 @@ class NewMiLitModel(pl.LightningModule):
         self.mean_layer_0 = nn.Linear(128, 128)
         self.mean_layer_1 = nn.Linear(64, 64)
         self.mean_layer_2 = nn.Linear(32, 32)
-        # self.var_layer_0 = nn.Linear(128, 128)
-        # self.var_layer_1 = nn.Linear(64, 64)
-        # self.var_layer_2 = nn.Linear(32, 32)
+        
         
         # self.ctr_alpha_0 = torch.nn.Parameter(torch.tensor([5.0] * 128)).to(self.d)
         # self.ctr_alpha_1 = torch.nn.Parameter(torch.tensor([5.0] * 64)).to(self.d)
@@ -839,24 +837,12 @@ class NewMiLitModel(pl.LightningModule):
         click_pred, conversion_pred, click_conversion_pred = results[0], results[1], results[2]
         
         if self.info_layer_num != 0.0:
-            teacher_layers = tower_fea[2]
-            student_layers = tower_fea[1]
+            teacher_layers = tower_fea[0]
+            student_layers = tower_fea[2]
             
             student_layer_mean_0 = self.mean_layer_0(student_layers[0])
             student_layer_mean_1 = self.mean_layer_1(student_layers[1])
             student_layer_mean_2 = self.mean_layer_2(student_layers[2])
-            
-            # student_layer_var_0 = self.var_layer_0(student_layers[0])
-            # student_layer_var_1 = self.var_layer_1(student_layers[1])
-            # student_layer_var_2 = self.var_layer_2(student_layers[2])
-            
-            # student_layer_var_0 = torch.nn.functional.softplus(student_layer_var_0) + 1e-3
-            # student_layer_var_1 = torch.nn.functional.softplus(student_layer_var_1) + 1e-3
-            # student_layer_var_2 = torch.nn.functional.softplus(student_layer_var_2) + 1e-3
-            
-            # vids_loss_0 = torch.mean(torch.log(student_layer_var_0) + torch.square(teacher_layers[0] - student_layer_mean_0) / student_layer_var_0) / 2.0
-            # vids_loss_1 = torch.mean(torch.log(student_layer_var_1) + torch.square(teacher_layers[1] - student_layer_mean_1) / student_layer_var_1) / 2.0
-            # vids_loss_2 = torch.mean(torch.log(student_layer_var_2) + torch.square(teacher_layers[2] - student_layer_mean_2) / student_layer_var_2) / 2.0
             
             vids_loss_0 = torch.mean(torch.log(self.var_0) + torch.square(teacher_layers[0] - student_layer_mean_0) / self.var_0) / 2.0
             vids_loss_1 = torch.mean(torch.log(self.var_1) + torch.square(teacher_layers[1] - student_layer_mean_1) / self.var_1) / 2.0
@@ -915,7 +901,7 @@ class NewMiLitModel(pl.LightningModule):
 
     def configure_optimizers(self):    
         # define optimizer and lr scheduler
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         return optimizer
 
 
