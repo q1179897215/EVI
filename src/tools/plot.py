@@ -1,5 +1,4 @@
 import os
-
 import lightning.pytorch as pl
 import matplotlib.pyplot as plt
 import numpy as np
@@ -7,125 +6,113 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dataset import get_dataloaders
 from lightning.pytorch.callbacks import Callback
+from torchmetrics.classification import BinaryAUROC
 
-from models.cgam import CGAM_V3, ContrastiveLoss, Loss_Student
-from utils import BatchTransform, single_train
-
-vocabulary_size = {
-    "101": 238635,
-    "121": 98,
-    "122": 14,
-    "124": 3,
-    "125": 8,
-    "126": 4,
-    "127": 4,
-    "128": 3,
-    "129": 5,
-    "205": 467298,
-    "206": 6929,
-    "207": 263942,
-    "216": 106399,
-    "508": 5888,
-    "509": 104830,
-    "702": 51878,
-    "853": 37148,
-    "301": 4,
-}
-
-
-class LitCGCM(pl.LightningModule):
-    def __init__(self, config):
+class MultiTaskCallback(Callback):
+    def __init__(
+        self,
+    ):
         super().__init__()
-        self.save_hyperparameters()
-        self.config = config
-        self.model = config["student_model"](config)
-        self.loss = config["student_model_loss"](config)
-        self.lr = config["learning_rate"]
-        self.batch_size = config["batch_size"]
-        self.contrastive_loss = config["contrastive_loss"](config)
-        self.batch_transform = BatchTransform(config)
 
-    def forward(self, features):
-        return self.model(features)
+    def on_train_start(self, trainer, pl_module):
+        print("start training")
+        
+    def dim_zero_cat(self, x):
+        """Concatenation along the zero dimension."""
+        if isinstance(x, torch.Tensor):
+            return x
+        x = [y.unsqueeze(0) if y.numel() == 1 and y.ndim == 0 else y for y in x]
+        if not x:  # empty list
+            raise ValueError("No samples to concatenate")
+        return torch.cat(x, dim=0)
+    
+    def on_validation_epoch_end(self, trainer, pl_module):
+        # judge if a attribute is not None
 
-    def training_step(self, batch, batch_idx):
-        click, conversion, features = self.batch_transform(batch)
-
-        click_pred, conversion_pred, click_conversion_pred, imp_pred, embeddings = self.model(
-            features
-        )
-
-        contrastive_loss = self.config["contrastive_loss_proportion"] * self.contrastive_loss(
-            click_pred, click, conversion_pred, conversion, embeddings
-        )
-
-        loss = (
-            self.loss(
-                click_pred, conversion_pred, click_conversion_pred, click, conversion, imp_pred
-            )
-            + contrastive_loss
-        )
-
-        self.log("train_loss", loss, on_epoch=True, on_step=True)
-        self.log("contrastive_loss", contrastive_loss, on_epoch=True, on_step=True)
-
-        return loss
-
-    def validation_step(self, batch, batch_idx):
-        click, conversion, features = self.batch_transform(batch)
-        click_pred, conversion_pred, click_conversion_pred, imp_pred, fea = self.model(features)
-        # filter the conversion_pred where click is 0
-        conversion_pred_filter = conversion_pred[click == 1]
-        conversion_filter = conversion[click == 1]
-
-        val_loss = self.loss(
-            click_pred, conversion_pred, click_conversion_pred, click, conversion, imp_pred
-        )
-
-        self.log("val_loss", val_loss, on_epoch=True, on_step=True)
-
-        return {
-            "val_loss": val_loss,
-            "click_pred": click_pred,
-            "conversion_pred": conversion_pred,
-            "conversion_pred_filter": conversion_pred_filter,
-            "click_conversion_pred": click_conversion_pred,
-            "click_label": click,
-            "conversion_label": conversion,
-            "conversion_label_filter": conversion_filter,
-            "click_conversion_label": click * conversion,
-        }
-
-    def test_step(self, batch, batch_idx):
-        click, conversion, features = self.batch_transform(batch)
-        click_pred, conversion_pred, click_conversion_pred, imp_pred, fea = self.model(features)
-        conversion_pred_filter = conversion_pred[click == 1]
-        conversion_filter = conversion[click == 1]
-
-        return {
-            "click_pred_test": click_pred,
-            "conversion_pred_test": conversion_pred,
-            "conversion_pred_filter_test": conversion_pred_filter,
-            "click_conversion_pred_test": click_conversion_pred,
-            "click_label_test": click,
-            "conversion_label_test": conversion,
-            "conversion_label_filter_test": conversion_filter,
-            "click_conversion_label_test": click * conversion,
-        }
-
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(
-            self.parameters(), lr=self.lr, weight_decay=self.config["weight_decay"]
-        )
-        return optimizer
-
-
-class LitCallback(Callback):
-    def __init__(self, config):
-        self.config = config
+        if hasattr(pl_module, 'val_ctr_auc'):
+            self.log("val/ctr_auc", pl_module.val_ctr_auc.compute())
+            pval_ctr = self.dim_zero_cat(pl_module.val_ctr_auc.preds)
+            pval_ctr_target =  self.dim_zero_cat(pl_module.val_ctr_auc.target)
+            self.log("val/ctr_logloss", torch.nn.functional.binary_cross_entropy(pval_ctr, pval_ctr_target))
+            pl_module.val_ctr_auc.reset()
+        if hasattr(pl_module, 'val_cvr_auc'):
+            self.log("val/cvr_auc", pl_module.val_cvr_auc.compute())
+            pval_cvr = self.dim_zero_cat(pl_module.val_cvr_auc.preds)
+            pval_cvr_target =  self.dim_zero_cat(pl_module.val_cvr_auc.target)
+            self.log("val/cvr_logloss", torch.nn.functional.binary_cross_entropy(pval_cvr, pval_cvr_target))
+            pl_module.val_cvr_auc.reset()
+        if hasattr(pl_module, 'val_ctcvr_auc'):
+            self.log("val/ctcvr_auc", pl_module.val_ctcvr_auc.compute())
+            pval_ctcvr = self.dim_zero_cat(pl_module.val_ctcvr_auc.preds)
+            pval_ctcvr_target =  self.dim_zero_cat(pl_module.val_ctcvr_auc.target)
+            self.log("val/ctcvr_logloss", torch.nn.functional.binary_cross_entropy(pval_ctcvr, pval_ctcvr_target))
+            pl_module.val_ctcvr_auc.reset()
+        if hasattr(pl_module, 'val_cvr_unclick_auc'):
+            self.log("val/cvr_unclick_auc", pl_module.val_cvr_unclick_auc.compute())
+            pval_cvr_unclick = self.dim_zero_cat(pl_module.val_cvr_unclick_auc.preds)
+            pval_cvr_unclick_target =  self.dim_zero_cat(pl_module.val_cvr_unclick_auc.target)
+            self.log("val/cvr_unclick_logloss", torch.nn.functional.binary_cross_entropy(pval_cvr_unclick, pval_cvr_unclick_target))
+            pl_module.cvr_unclick_auc.reset()
+        if hasattr(pl_module, 'val_cvr_exposure_auc'):
+            self.log("val/cvr_exposure_auc", pl_module.val_cvr_exposure_auc.compute())
+            pval_cvr_exposure = self.dim_zero_cat(pl_module.val_cvr_exposure_auc.preds)
+            pval_cvr_exposure_target =  self.dim_zero_cat(pl_module.val_cvr_exposure_auc.target)
+            self.log("val/cvr_exposure_logloss", torch.nn.functional.binary_cross_entropy(pval_cvr_exposure, pval_cvr_exposure_target))
+            pl_module.val_cvr_exposure_auc.reset()
+    
+    def on_test_epoch_end(self, trainer, pl_module):
+        if hasattr(pl_module, 'ctr_auc'):
+            self.log("test/ctr_auc", pl_module.ctr_auc.compute())
+            pctr = self.dim_zero_cat(pl_module.ctr_auc.preds)
+            pctr_target =  self.dim_zero_cat(pl_module.ctr_auc.target)
+            ctr_logloss = torch.nn.functional.binary_cross_entropy(pctr, pctr_target)
+            self.log("test/ctr_logloss", ctr_logloss)
+            pl_module.ctr_auc.reset()
+        if hasattr(pl_module, 'cvr_auc'):
+            self.log("test/cvr_auc", pl_module.cvr_auc.compute())
+            pcvr = self.dim_zero_cat(pl_module.cvr_auc.preds)
+            pcvr_target =  self.dim_zero_cat(pl_module.cvr_auc.target)
+            self.log("test/cvr_logloss", torch.nn.functional.binary_cross_entropy(pcvr, pcvr_target))
+            pl_module.cvr_auc.reset()
+        if hasattr(pl_module, 'ctcvr_auc'):
+            self.log("test/ctcvr_auc", pl_module.ctcvr_auc.compute())
+            pctcvr = self.dim_zero_cat(pl_module.ctcvr_auc.preds)
+            pctcvr_target =  self.dim_zero_cat(pl_module.ctcvr_auc.target)
+            self.log("test/ctcvr_logloss", torch.nn.functional.binary_cross_entropy(pctcvr, pctcvr_target))
+            pl_module.ctcvr_auc.reset()        
+        if hasattr(pl_module, 'cvr_unclick_auc'):
+            self.log("test/cvr_unclick_auc", pl_module.cvr_unclick_auc.compute())
+            pcvr_unclick = self.dim_zero_cat(pl_module.cvr_unclick_auc.preds)
+            pcvr_unclick_target =  self.dim_zero_cat(pl_module.cvr_unclick_auc.target)
+            self.log("test/cvr_unclick_logloss", torch.nn.functional.binary_cross_entropy(pcvr_unclick, pcvr_unclick_target))
+            pl_module.cvr_unclick_auc.reset()
+        if hasattr(pl_module, 'cvr_exposure_auc'):
+            self.log("test/cvr_exposure_auc", pl_module.cvr_exposure_auc.compute())
+            pcvr_exposure = self.dim_zero_cat(pl_module.cvr_exposure_auc.preds)
+            pcvr_exposure_target =  self.dim_zero_cat(pl_module.cvr_exposure_auc.target)
+            self.log("test/cvr_exposure_logloss", torch.nn.functional.binary_cross_entropy(pcvr_exposure, pcvr_exposure_target))
+            pl_module.cvr_exposure_auc.reset()
+        
+        # pctr = self.dim_zero_cat(pl_module.ctr_auc.preds)
+        # target =  self.dim_zero_cat(pl_module.ctr_auc.target)
+        # m = target.sum()
+        # n = len(target) - target.sum()
+        # p = m / (m + n)
+        # q = m / (m + 2*n)
+        # self.log("pctr_mean", pctr.mean())
+        # self.log("m", m)
+        # self.log('n', n)
+        # self.log('p', p)
+        # self.log('q', q)
+        
+class MultiTaskCallback_Plot0(Callback):
+    def __init__(
+        self, 
+        fig_dir: str = './outputs'
+    ):
         super().__init__()
+        self.fig_dir = fig_dir 
 
     def on_test_start(self, trainer, pl_module):
         self.click_pred_test = []
@@ -136,238 +123,222 @@ class LitCallback(Callback):
         self.conversion_label_test = []
         self.conversion_label_filter_test = []
         self.click_conversion_label_test = []
-
+    
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
-        self.click_pred_test.append(outputs["click_pred_test"])
-        self.conversion_pred_test.append(outputs["conversion_pred_test"])
-        self.conversion_pred_filter_test.append(outputs["conversion_pred_filter_test"])
-        self.click_conversion_pred_test.append(outputs["click_conversion_pred_test"])
-        self.click_label_test.append(outputs["click_label_test"])
-        self.conversion_label_test.append(outputs["conversion_label_test"])
-        self.conversion_label_filter_test.append(outputs["conversion_label_filter_test"])
-        self.click_conversion_label_test.append(outputs["click_conversion_label_test"])
+        self.click_pred_test.append(outputs['click_pred_test'])
+        self.conversion_pred_test.append(outputs['conversion_pred_test'])
+        self.conversion_pred_filter_test.append(outputs['conversion_pred_filter_test'])
+        self.click_conversion_pred_test.append(outputs['click_conversion_pred_test'])
+        self.click_label_test.append(outputs['click_label_test'])
+        self.conversion_label_test.append(outputs['conversion_label_test'])
+        self.conversion_label_filter_test.append(outputs['conversion_label_filter_test'])
+        self.click_conversion_label_test.append(outputs['click_conversion_label_test'])
 
     def on_test_epoch_end(self, trainer, pl_module):
+        self.log("test/ctr_auc", pl_module.ctr_auc.compute())
+        self.log("test/cvr_auc", pl_module.cvr_auc.compute())
+        self.log("test/ctcvr_auc", pl_module.ctcvr_auc.compute())
+        pl_module.ctr_auc.reset()
+        pl_module.cvr_auc.reset()
+        pl_module.ctcvr_auc.reset()
+        
         self.click_label_test = torch.cat(self.click_label_test).cpu().detach().numpy()
         self.click_pred_test = torch.cat(self.click_pred_test).cpu().detach().numpy()
         self.conversion_pred_test = torch.cat(self.conversion_pred_test).cpu().detach().numpy()
         self.conversion_label_test = torch.cat(self.conversion_label_test).cpu().detach().numpy()
+        self.conversion_pred_filter_test = torch.cat(self.conversion_pred_filter_test).cpu().detach().numpy()
+        self.conversion_label_filter_test = torch.cat(self.conversion_label_filter_test).cpu().detach().numpy()
+        
         propensity_scores = 1 / self.click_pred_test
-        propensity_scores_click = 1 / self.click_pred_test[self.click_label_test == 1]
-        propensity_scores_unclick = 1 / self.click_pred_test[self.click_label_test == 0]
+        propensity_scores_click = 1 / self.click_pred_test[self.click_label_test==1]
+        propensity_scores_unclick = 1 / self.click_pred_test[self.click_label_test==0]
         propensity_scores_click_expection = propensity_scores_click.mean()
-        cvr_expection = self.conversion_label_test.mean()
-        cvr_expection_prediction = self.conversion_pred_test.mean()
-        cvr_expection_click = self.conversion_label_test[self.click_label_test == 1].mean()
-        cvr_expection_click_prediction = self.conversion_pred_test[
-            self.click_label_test == 1
-        ].mean()
-        cvr_expection_click_weighted = np.average(
-            self.conversion_label_test[self.click_label_test == 1],
-            weights=propensity_scores[self.click_label_test == 1],
-        )
-        print("propensity_scores_click_expection", propensity_scores_click_expection)
-        print("propensity_scores_click_variance", propensity_scores_click.var())
-        print("cvr_expection", cvr_expection)
-        print("cvr_expection_prediction", cvr_expection_prediction)
-        print("cvr_expection_prediction_variance", self.conversion_pred_test.var())
-        print("cvr_expection_click", cvr_expection_click)
-        print("cvr_expection_click_prediction", cvr_expection_click_prediction)
-        print("cvr_expection_click_weighted", cvr_expection_click_weighted)
+        
+        print('propensity_scores_click_expection', propensity_scores_click_expection)
+        print('propensity_scores_click_variance', propensity_scores_click.var())
 
-        # convert self.click_pred_test[self.click_label_test==1] to pandas
-        propensity_scores_click_df = pd.DataFrame(propensity_scores_click)
-        propensity_scores_click_df.to_csv(
-            config["figure_dir"] + "/propensity_scores_click.csv", index=False
-        )
-        propensity_scores_unclick_df = pd.DataFrame(propensity_scores_unclick)
-        propensity_scores_unclick_df = propensity_scores_unclick_df.sample(
-            n=len(propensity_scores_click_df), random_state=1
-        )
-        propensity_scores_unclick_df.to_csv(
-            config["figure_dir"] + "/propensity_scores_click_unclick.csv", index=False
-        )
-        k = int(len(propensity_scores_click_df) * 0.1)
-        topk_of_propensity_scores_click = propensity_scores_click_df.sort_values(
-            by=0, ascending=False
-        ).head(k)
-        topk_of_propensity_scores_click.to_csv(
-            config["figure_dir"] + "/topk_of_propensity_scores_click.csv", index=False
-        )
-        topk_of_propensity_scores_unclick = propensity_scores_unclick_df.sort_values(
-            by=0, ascending=True
-        ).head(k)
-        topk_of_propensity_scores_unclick.to_csv(
-            config["figure_dir"] + "/topk_of_propensity_scores_unclick.csv", index=False
-        )
+        
+        print('conversion_label_mean', self.conversion_label_test.mean())
+        print('conversion_pred_mean', self.conversion_pred_test.mean())
+        print('conversion_pred_variance', self.conversion_pred_test.var())
+        
+        print('conversion_label_filter_mean', self.conversion_label_filter_test.mean())
+        print('conversion_pred_filter_mean', self.conversion_pred_filter_test.mean())
+        print('conversion_pred_filter_variance', self.conversion_pred_filter_test.var()) 
+        
+        if os.path.exists(self.fig_dir) == False:
+            os.makedirs(self.fig_dir)
+            
+        
+        plt.figure(figsize=(12,9), dpi=200)
+        plt.hist(self.conversion_pred_filter_test, bins=100, color='whitesmoke', alpha=1, edgecolor='black', density=True, label='Count')
+        # Add a vertical line at the mean
+        pred_mean = self.conversion_pred_filter_test.mean()
+        pred_var = self.conversion_pred_filter_test.var()
+        # var show in scientific notation
+        pred_var = '%.2E' % pred_var
+        label_mean = self.conversion_label_filter_test.mean()
+        increase = (pred_mean - label_mean) / label_mean
+        # get round of increase
+        if increase > 0:
+            increase = '+' + str(round(increase*100, 2))
+        else:
+            increase = str(round(increase*100, 2))
+        increase = increase + '%'
+        
 
-        # convert self.conversion_pred_test to pandas
-        conversion_pred_test_df = pd.DataFrame(self.conversion_pred_test)
-        # random sample 400000 rows
-        conversion_pred_test_df = conversion_pred_test_df.sample(n=1000000, random_state=1)
-        conversion_pred_test_df.to_csv(
-            config["figure_dir"] + "/conversion_pred_test.csv", index=False
-        )
+        plt.axvline(pred_mean, color='r', linestyle='dashed', linewidth=2, label='Prediction Mean:{:.4f}({}), Variance:{}'.format(pred_mean, increase, pred_var))
+        plt.axvline(label_mean, color='g', linestyle='dashed', linewidth=2, label='Label Mean:{:.4f}'.format(label_mean))
 
-        plt.hist(self.click_pred_test, bins=100, edgecolor="black", alpha=0.5, color="orange")
-        plt.savefig(
-            config["figure_dir"]
-            + "/click_prediction_in_exposure_space_"
-            + config["png_name"]
-            + ".png",
-            format="png",
-        )
+        # Display the mean value on the plot
+        # plt.text(pred_mean+1, 0.03, 'Mean: {:.2f}'.format(pred_mean), fontsize=20, color='r')
+
+        plt.xlabel('CVR prediction values', fontsize=28, color='black')
+        plt.ylabel('Count', fontsize=28, color='black')
+        plt.xticks(fontsize=20, color='black')
+        plt.yticks(fontsize=20, color='black')
+        plt.style.use('fast')
+        plt.legend(fontsize=20)
+        plt.savefig(self.fig_dir +'/conversion_pred_filter_test' + '.pdf', format='pdf')
         plt.clf()
-
-        plt.hist(
-            self.click_pred_test[self.click_label_test == 1],
-            bins=100,
-            edgecolor="black",
-            alpha=0.5,
-            color="green",
-        )
-        plt.savefig(
-            config["figure_dir"]
-            + "/click_prediction_in_click_space_"
-            + config["png_name"]
-            + ".png",
-            format="png",
-        )
+        
+        plt.hist(self.conversion_pred_test, bins=100,  edgecolor='black', alpha=0.5,  color='orange')
+        plt.savefig(self.fig_dir+'/conversion_pred_test' + '.png', format='png', dpi=300)
         plt.clf()
-
-        plt.hist(
-            self.click_pred_test[self.click_label_test == 0],
-            bins=100,
-            edgecolor="black",
-            alpha=0.5,
-            color="blue",
-        )
-        plt.savefig(
-            config["figure_dir"]
-            + "/click_prediction_in_unclick_space_"
-            + config["png_name"]
-            + ".png",
-            format="png",
-        )
+        
+        plt.hist(self.click_pred_test, bins=100,  edgecolor='black', alpha=0.5,  color='orange')
+        plt.savefig(self.fig_dir+'/click_pred_test' + '.png', format='png', dpi=300)
         plt.clf()
+   
+class MultiTaskCallbackPlot0(Callback):
+    def __init__(
+        self,
+        fig_dir='./outputs'
+    ):
+        super().__init__()
+        self.path = fig_dir
+        self.auc_metric  = BinaryAUROC()
 
-        plt.hist(
-            1.0 / self.click_pred_test, bins=100, edgecolor="black", alpha=0.5, color="orange"
-        )
-        plt.xlim(0, 100)
-        plt.savefig(
-            config["figure_dir"]
-            + "/inversed_click_prediction_in_exposure_space_"
-            + config["png_name"]
-            + ".png",
-            format="png",
-        )
-        plt.clf()
+    def on_train_start(self, trainer, pl_module):
+        print("start training")
+        
+    def dim_zero_cat(self, x):
+        """Concatenation along the zero dimension."""
+        if isinstance(x, torch.Tensor):
+            return x
+        x = [y.unsqueeze(0) if y.numel() == 1 and y.ndim == 0 else y for y in x]
+        if not x:  # empty list
+            raise ValueError("No samples to concatenate")
+        return torch.cat(x, dim=0)
+    
+    def on_validation_epoch_end(self, trainer, pl_module):
+        # judge if a attribute is not None
 
-        plt.hist(
-            1.0 / self.click_pred_test[self.click_label_test == 1],
-            bins=100,
-            edgecolor="black",
-            alpha=0.5,
-            color="green",
-        )
-        plt.xlim(0, 100)
-        plt.savefig(
-            config["figure_dir"]
-            + "/inversed_click_prediction_in_click_space_"
-            + config["png_name"]
-            + ".png",
-            format="png",
-        )
-        plt.clf()
+        if hasattr(pl_module, 'val_ctr_auc'):
+            self.log("val/ctr_auc", pl_module.val_ctr_auc.compute())
+            pval_ctr = self.dim_zero_cat(pl_module.val_ctr_auc.preds)
+            pval_ctr_target =  self.dim_zero_cat(pl_module.val_ctr_auc.target)
+            self.log("val/ctr_logloss", torch.nn.functional.binary_cross_entropy(pval_ctr, pval_ctr_target))
+            pl_module.val_ctr_auc.reset()
+        if hasattr(pl_module, 'val_cvr_auc'):
+            self.log("val/cvr_auc", pl_module.val_cvr_auc.compute())
+            pval_cvr = self.dim_zero_cat(pl_module.val_cvr_auc.preds)
+            pval_cvr_target =  self.dim_zero_cat(pl_module.val_cvr_auc.target)
+            self.log("val/cvr_logloss", torch.nn.functional.binary_cross_entropy(pval_cvr, pval_cvr_target))
+            pl_module.val_cvr_auc.reset()
+        if hasattr(pl_module, 'val_ctcvr_auc'):
+            self.log("val/ctcvr_auc", pl_module.val_ctcvr_auc.compute())
+            pval_ctcvr = self.dim_zero_cat(pl_module.val_ctcvr_auc.preds)
+            pval_ctcvr_target =  self.dim_zero_cat(pl_module.val_ctcvr_auc.target)
+            self.log("val/ctcvr_logloss", torch.nn.functional.binary_cross_entropy(pval_ctcvr, pval_ctcvr_target))
+            pl_module.val_ctcvr_auc.reset()
+        if hasattr(pl_module, 'val_cvr_unclick_auc'):
+            self.log("val/cvr_unclick_auc", pl_module.val_cvr_unclick_auc.compute())
+            pval_cvr_unclick = self.dim_zero_cat(pl_module.val_cvr_unclick_auc.preds)
+            pval_cvr_unclick_target =  self.dim_zero_cat(pl_module.val_cvr_unclick_auc.target)
+            self.log("val/cvr_unclick_logloss", torch.nn.functional.binary_cross_entropy(pval_cvr_unclick, pval_cvr_unclick_target))
+            pl_module.cvr_unclick_auc.reset()
+        if hasattr(pl_module, 'val_cvr_exposure_auc'):
+            self.log("val/cvr_exposure_auc", pl_module.val_cvr_exposure_auc.compute())
+            pval_cvr_exposure = self.dim_zero_cat(pl_module.val_cvr_exposure_auc.preds)
+            pval_cvr_exposure_target =  self.dim_zero_cat(pl_module.val_cvr_exposure_auc.target)
+            self.log("val/cvr_exposure_logloss", torch.nn.functional.binary_cross_entropy(pval_cvr_exposure, pval_cvr_exposure_target))
+            pl_module.val_cvr_exposure_auc.reset()
+    
+    def on_test_epoch_end(self, trainer, pl_module):
+        if hasattr(pl_module, 'ctr_auc'):
+            self.log("test/ctr_auc", pl_module.ctr_auc.compute())
+            pctr = self.dim_zero_cat(pl_module.ctr_auc.preds)
+            pctr_target =  self.dim_zero_cat(pl_module.ctr_auc.target)
+            ctr_logloss = torch.nn.functional.binary_cross_entropy(pctr, pctr_target)
+            self.log("test/ctr_logloss", ctr_logloss)
+            self.log("test/ctr_label_mean", pctr_target.mean())
+            self.log("test/ctr_pred_mean", pctr.mean())
+            self.log("test/ctr_pred_variance", pctr.var())
+            pl_module.ctr_auc.reset()
+        if hasattr(pl_module, 'cvr_auc'):
+            self.log("test/cvr_auc", pl_module.cvr_auc.compute())
+            pcvr = self.dim_zero_cat(pl_module.cvr_auc.preds)
+            pcvr_target =  self.dim_zero_cat(pl_module.cvr_auc.target)
+            self.log("test/cvr_logloss", torch.nn.functional.binary_cross_entropy(pcvr, pcvr_target))
+            self.log("test/cvr_label_mean", pcvr_target.mean())
+            self.log("test/cvr_pred_mean", pcvr.mean())
+            self.log("test/cvr_pred_variance", pcvr.var())
+            pl_module.cvr_auc.reset()
+        if hasattr(pl_module, 'cvr_unclick_auc'):
+            self.log("test/cvr_unclick_auc", pl_module.cvr_unclick_auc.compute())
+            pcvr_unclick = self.dim_zero_cat(pl_module.cvr_unclick_auc.preds)
+            pcvr_unclick_target =  self.dim_zero_cat(pl_module.cvr_unclick_auc.target)
+            self.log("test/cvr_unclick_logloss", torch.nn.functional.binary_cross_entropy(pcvr_unclick, pcvr_unclick_target))
+            self.log("test/cvr_unclick_label_mean", pcvr_unclick_target.mean())
+            self.log("test/cvr_unclick_pred_mean", pcvr_unclick.mean())
+            self.log("test/cvr_unclick_pred_variance", pcvr_unclick.var())
+            pl_module.cvr_unclick_auc.reset()
+        if hasattr(pl_module, 'cvr_exposure_auc'):
+            self.log("test/cvr_exposure_auc", pl_module.cvr_exposure_auc.compute())
+            pcvr_exposure = self.dim_zero_cat(pl_module.cvr_exposure_auc.preds)
+            pcvr_exposure_target =  self.dim_zero_cat(pl_module.cvr_exposure_auc.target)
+            self.log("test/cvr_exposure_logloss", torch.nn.functional.binary_cross_entropy(pcvr_exposure, pcvr_exposure_target))
+            self.log("test/cvr_exposure_label_mean", pcvr_exposure_target.mean())
+            self.log("test/cvr_exposure_pred_mean", pcvr_exposure.mean())
+            self.log("test/cvr_exposure_pred_variance", pcvr_exposure.var())
+            pl_module.cvr_exposure_auc.reset()
+        if hasattr(pl_module, 'ctcvr_auc'):
+            pctcvr = self.dim_zero_cat(pl_module.ctcvr_auc.preds)
+            pctcvr_target =  self.dim_zero_cat(pl_module.ctcvr_auc.target)
+            pctcvr_unclick = pctcvr[pctr_target == 0]
+            pctcvr_target_unclick = pctcvr_target[pctr_target == 0]
+            pctcvr_click = pctcvr[pctr_target == 1]
+            pctcvr_target_click = pctcvr_target[pctr_target == 1]
+            self.log("test/ctcvr_auc", pl_module.ctcvr_auc.compute())
+            self.log("test/ctcvr_auc_unclick", self.auc_metric(pctcvr_unclick, pctcvr_target_unclick))
+            self.log("test/ctcvr_auc_click", self.auc_metric(pctcvr_click, pctcvr_target_click))
+            self.log("test/ctcvr_logloss", torch.nn.functional.binary_cross_entropy(pctcvr, pctcvr_target))
+            self.log("test/ctcvr_logloss_unclick", torch.nn.functional.binary_cross_entropy(pctcvr_unclick, pctcvr_target_unclick))
+            self.log("test/ctcvr_logloss_click", torch.nn.functional.binary_cross_entropy(pctcvr_click, pctcvr_target_click))
+            self.log("test/ctcvr_label_mean", pctcvr_target.mean())
+            self.log("test/ctcvr_pred_mean", pctcvr.mean())
+            self.log("test/ctcvr_pred_variance", pctcvr.var())
+            self.log("test/ctcvr_label_mean_unclick", pctcvr_target_unclick.mean())
+            self.log("test/ctcvr_pred_mean_unclick", pctcvr_unclick.mean())
+            self.log("test/ctcvr_pred_variance_unclick", pctcvr_unclick.var())
+            self.log("test/ctcvr_label_mean_click", pctcvr_target_click.mean())
+            self.log("test/ctcvr_pred_mean_click", pctcvr_click.mean())
+            self.log("test/ctcvr_pred_variance_click", pctcvr_click.var())
+            pl_module.ctcvr_auc.reset()
 
-        plt.hist(
-            1.0 / self.click_pred_test[self.click_label_test == 0],
-            bins=100,
-            edgecolor="black",
-            alpha=0.5,
-            color="blue",
-        )
-        plt.xlim(0, 100)
-        plt.savefig(
-            config["figure_dir"]
-            + "/inversed_click_prediction_in_unclick_space_"
-            + config["png_name"]
-            + ".png",
-            format="png",
-        )
-        plt.clf()
-
-        plt.hist(
-            self.conversion_pred_test, bins=1000, edgecolor="black", alpha=0.5, color="orange"
-        )
-        plt.xlim(0, 0.01)
-        plt.axvline(x=cvr_expection, color="r", linestyle="--")
-        plt.axvline(x=cvr_expection_prediction, color="g", linestyle="--")
-        plt.savefig(
-            config["figure_dir"]
-            + "/conversion_prediction_in_exposure_space_"
-            + config["png_name"]
-            + ".png",
-            format="png",
-        )
-        plt.clf()
-        plt.hist(
-            self.conversion_pred_test[self.click_label_test == 0],
-            bins=1000,
-            edgecolor="black",
-            alpha=0.5,
-            color="blue",
-        )
-        plt.xlim(0, 0.01)
-        plt.axvline(x=cvr_expection, color="r", linestyle="--")
-        plt.axvline(x=cvr_expection_prediction, color="g", linestyle="--")
-        plt.savefig(
-            config["figure_dir"]
-            + "/conversion_prediction_in_unclick_space_"
-            + config["png_name"]
-            + ".png",
-            format="png",
-        )
-        plt.clf()
-        plt.hist(
-            self.conversion_pred_test[self.click_label_test == 1],
-            bins=1000,
-            edgecolor="black",
-            alpha=0.5,
-            color="green",
-        )
-        plt.xlim(0, 0.01)
-        plt.axvline(x=cvr_expection_click, color="r", linestyle="--")
-        plt.axvline(x=cvr_expection_click_prediction, color="g", linestyle="--")
-        plt.savefig(
-            config["figure_dir"]
-            + "/conversion_prediction_in_click_space_"
-            + config["png_name"]
-            + ".png",
-            format="png",
-        )
-        plt.clf()
-
-        plt.hist(
-            self.conversion_pred_test[self.click_label_test == 1],
-            weights=propensity_scores[self.click_label_test == 1],
-            bins=1000,
-            edgecolor="black",
-            alpha=0.5,
-            color="green",
-        )
-        plt.xlim(0, 0.01)
-        plt.axvline(x=cvr_expection, color="r", linestyle="--")
-        plt.axvline(x=cvr_expection_click_weighted, color="g", linestyle="--")
-        plt.savefig(
-            config["figure_dir"]
-            + "/reweight_conversion_prediction_in_click_space_"
-            + config["png_name"]
-            + ".png",
-            format="png",
-        )
-
+        
+        # pctr = self.dim_zero_cat(pl_module.ctr_auc.preds)
+        # target =  self.dim_zero_cat(pl_module.ctr_auc.target)
+        # m = target.sum()
+        # n = len(target) - target.sum()
+        # p = m / (m + n)
+        # q = m / (m + 2*n)
+        # self.log("pctr_mean", pctr.mean())
+        # self.log("m", m)
+        # self.log('n', n)
+        # self.log('p', p)
+        # self.log('q', q)
 
 if __name__ == "__main__":
     config = dict(

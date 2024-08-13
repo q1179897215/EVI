@@ -837,8 +837,8 @@ class NewMiLitModel(pl.LightningModule):
         click_pred, conversion_pred, click_conversion_pred = results[0], results[1], results[2]
         
         if self.info_layer_num != 0.0:
-            teacher_layers = tower_fea[0]
-            student_layers = tower_fea[2]
+            teacher_layers = tower_fea[2]
+            student_layers = tower_fea[1]
             
             student_layer_mean_0 = self.mean_layer_0(student_layers[0])
             student_layer_mean_1 = self.mean_layer_1(student_layers[1])

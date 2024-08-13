@@ -104,8 +104,6 @@ class MlpLayerFea(torch.nn.Module):
         return layer_output
     
 
-
-
 class AlldataEmbeddingLayer(torch.nn.Module):
     def __init__(self, batch_type="ccp", embedding_size=5):
         super().__init__()

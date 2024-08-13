@@ -6,7 +6,7 @@
 defaults:
   - override /data: ccp
   - override /model: new_model
-  - override /callbacks: multi_task_callbacks
+  - override /callbacks: multi_task_callbacks_plot
   - override /trainer: gpu
   - override /logger: wandb
 
@@ -14,7 +14,9 @@ defaults:
 # this allows you to overwrite only specified parameters
 # "'${model.model.A_embed_output_dim}'"
 # "confounder_dim:'${model.model.confounder_dim}'"
-tags: ['ctr_mutual',"'${model.info_layer_num}'","${data.batch_type}","${model.model._target_}","${model.loss._target_}","${model._target_}"]
+# tags: ["for_plot","'${model.info_layer_num}'","${data.batch_type}","${model.model._target_}","${model.loss._target_}","${model._target_}"]
+
+tags: ["plot","'${model.info_layer_num}'","${data.batch_type}","${model._target_}"]
 
 seed: 2020
 trainer:

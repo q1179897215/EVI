@@ -14,8 +14,7 @@ nohup python src/train.py \
 python src/train.py \
 -m data=ccp experiment=ukd_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1 \
 
-
-python src/train.py -m data=in experiment=descm_ukd_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1
+python src/train.py -m data=in experiment=ukd_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1
 
 nohup python src/train.py \
 -m data=ccp \
@@ -24,3 +23,5 @@ model._target_=src.models.descm_ukd.CvrTeacherMultiTaskLitModel \
 model.loss._target_=src.models.descm_ukd.CvrTeacherMultiTaskLoss \
 model.model._target_=src.models.descm_ukd.CvrTeacherMultiTask >logs/out.log 2>&1 & \
 
+# plot
+python src/train.py -m data=ccp experiment=ukd_experiment callbacks=multi_task_callbacks_plot train=False test=True data.debug=False ckpt_path_test=./logs/train/ukd_teacher/ccp/checkpoints/last.ckpt tags=['ukd_bias_nll','ccp']

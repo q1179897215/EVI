@@ -20,3 +20,5 @@ model._target_=src.models.descm_ukd.CvrTeacherMultiTaskLitModel \
 model.loss._target_=src.models.descm_ukd.CvrTeacherMultiTaskLoss \
 model.model._target_=src.models.descm_ukd.CvrTeacherMultiTask >logs/out.log 2>&1 & \
 
+# plot
+python src/train.py -m data=ccp experiment=ddpo_experiment callbacks=multi_task_callbacks_plot train=False test=True data.debug=False ckpt_path_test=./logs/train/ukd_teacher/ccp/checkpoints/last.ckpt tags=['ddpo_bias_nll','ccp']
