@@ -12,7 +12,7 @@ nohup python src/train.py \
 -m data=ccp,fr,us,nl,es experiment=ukd_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1 >logs/out.log 2>&1 & \
 
 python src/train.py \
--m data=ccp experiment=ukd_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1 \
+-m data=in experiment=ukd_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1 \
 
 python src/train.py -m data=in experiment=ukd_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1
 
