@@ -16,7 +16,7 @@ defaults:
 # "confounder_dim:'${model.model.confounder_dim}'"
 # tags: ["for_plot","'${model.info_layer_num}'","${data.batch_type}","${model.model._target_}","${model.loss._target_}","${model._target_}"]
 
-tags: ["plot","'${model.info_layer_num}'","${data.batch_type}","${model._target_}"]
+tags: ["half","'${model.info_layer_num}'","${data.batch_type}","${model._target_}"]
 
 seed: 2020
 trainer:

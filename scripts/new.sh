@@ -7,11 +7,12 @@
 
 # nohup python src/train.py -m data=ccp,fr,us,nl,es model.loss._target_=src.models.common.Basic_Loss,src.models.common.Impression_CTR_IPW_Loss,src.models.common.Unclick_CTR_IPW_Loss,src.models.common.Click_CTR_IPW_Loss  experiment=descm_experiment test=True data.debug=False >logs/out.log 2>&1 &
 
-nohup python src/train.py -m data=ccp experiment=new_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1 model.info_layer_num=3.0 >logs/out1.log 2>&1 &
 
-nohup python src/train.py -m data=in experiment=new_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1 model.loss.ctr_loss_proportion=0.2 model.loss.ctcvr_loss_proportion=0.2 model.loss.unclick_space_loss_proportion=0.2 model.info_layer_num=0.0 >logs/out.log 2>&1 &
+nohup python src/train.py -m data=ccp,fr,us,nl,es experiment=new_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1 model.loss.ctr_loss_proportion=0.2,0.5,1.0 model.loss.cvr_loss_proportion=0.5 model.loss.ctcvr_loss_proportion=0.2,0.5,1.0 model.loss.unclick_space_loss_proportion=1 model.info_layer_num=3.0 >logs/out.log 2>&1 &
 
-nohup python src/train.py -m data=fr,us,nl,es experiment=new_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1 model.loss.ctr_loss_proportion=0.2 model.info_layer_num=3.0 >logs/out.log 2>&1 &
+nohup python src/train.py -m data=in experiment=new_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1 model.loss.ctr_loss_proportion=0.2,0.5,1.0 model.loss.cvr_loss_proportion=0.5 model.loss.ctcvr_loss_proportion=0.2,0.5,1.0 model.loss.unclick_space_loss_proportion=1 model.info_layer_num=3.0 >logs/out.log 2>&1 &
+
+nnohup python src/train.py -m data=in experiment=new_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1 model.loss.ctr_loss_proportion=0.2 model.loss.cvr_loss_proportion=0.5 model.loss.ctcvr_loss_proportion=0.2 model.loss.unclick_space_loss_proportion=1 model.info_layer_num=3.0 >logs/out.log 2>&1 &
 
 nohup python src/train.py \
 -m data=ccp \
