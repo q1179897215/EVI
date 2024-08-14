@@ -246,9 +246,13 @@ class CvrAllSpaceMultiTaskLoss(nn.Module):
     def __init__(self, 
                  ctr_loss_proportion: float = 1, 
                  cvr_loss_proportion: float = 1, 
-                 ctcvr_loss_proportion: float = 0.1,
+                 ctcvr_loss_proportion: float = 1,
+                 unclick_space_loss_proportion: float = 1,
                  ):
         super().__init__()
+        self.unclick_space_loss_proportion = unclick_space_loss_proportion
+        self.ctr_loss_proportion =  ctr_loss_proportion
+        self.ctcvr_loss_proportion = ctcvr_loss_proportion
     
     
     def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr):
@@ -258,9 +262,9 @@ class CvrAllSpaceMultiTaskLoss(nn.Module):
         loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean')
         loss_cvr_click = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
         loss_cvr_unclick = torch.nn.functional.binary_cross_entropy(p_cvr, p_ctcvr.detach(), reduction='none')
-        loss_cvr = torch.mean(ips*y_ctr*loss_cvr_click + non_ips*0.5*(1-y_ctr)*loss_cvr_unclick)
+        loss_cvr = torch.mean(ips*y_ctr*loss_cvr_click + non_ips*self.unclick_space_loss_proportion*(1-y_ctr)*loss_cvr_unclick)
         loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_cvr, reduction='none')
         loss_ctcvr = torch.mean(loss_ctcvr*y_ctr)
         loss_ctcvr2 = torch.nn.functional.binary_cross_entropy(p_cvr*p_ctr, y_cvr, reduction='mean')
-        loss = loss_ctr + loss_cvr + loss_ctcvr + 0.1 * loss_ctcvr2
+        loss = self.ctr_loss_proportion*loss_ctr + loss_cvr + self.ctcvr_loss_proportion*loss_ctcvr + loss_ctcvr2
         return loss

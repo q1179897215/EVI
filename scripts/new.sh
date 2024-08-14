@@ -9,7 +9,7 @@
 
 nohup python src/train.py -m data=ccp experiment=new_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1 model.info_layer_num=3.0 >logs/out1.log 2>&1 &
 
-nohup python src/train.py -m data=in experiment=new_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1 model.loss.ctr_loss_proportion=0.2 model.info_layer_num=3.0 >logs/out.log 2>&1 &
+nohup python src/train.py -m data=in experiment=new_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1 model.loss.ctr_loss_proportion=0.2 model.loss.ctcvr_loss_proportion=0.2 model.loss.unclick_space_loss_proportion=0.2 model.info_layer_num=0.0 >logs/out.log 2>&1 &
 
 nohup python src/train.py -m data=fr,us,nl,es experiment=new_experiment test=True data.debug=False trainer.max_epochs=1 trainer.min_epochs=1 model.loss.ctr_loss_proportion=0.2 model.info_layer_num=3.0 >logs/out.log 2>&1 &
 
