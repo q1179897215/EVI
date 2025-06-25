@@ -1,1 +1,0 @@
-python src/train.py -m data=fr experiment=escm_cdan_experiment test=True data.debug=False logger=csv trainer.max_epochs=2 trainer.min_epochs=1

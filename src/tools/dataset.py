@@ -54,7 +54,7 @@ class AliExpressDataset(Dataset):
         else:
             df = pd.read_hdf(dataset_path, key="df")
         data = df.to_numpy()[:, 1:]
-        self.categorical_data = data[:, :16].astype(np.int)
+        self.categorical_data = data[:, :16].astype(np.int32)
         self.numerical_data = data[:, 16:-2].astype(np.float32)
         self.labels = data[:, -2:].astype(np.float32)
         self.numerical_num = self.numerical_data.shape[1]

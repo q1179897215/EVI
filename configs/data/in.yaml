@@ -1,6 +1,0 @@
-_target_: src.tools.dataset.INLightningDataModule
-batch_size: 8000
-num_workers: 8
-debug: True
-shuffle_queue_size: 512
-batch_type: "in"
