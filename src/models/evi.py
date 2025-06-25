@@ -171,7 +171,6 @@ class Evi(torch.nn.Module):
         return results, feature_embedding, task_fea, tower_fea
  
 
-    
 class EviLitModel(pl.LightningModule):
     def __init__(self, 
                  model:torch.nn.Module,
@@ -247,8 +246,6 @@ class EviLitModel(pl.LightningModule):
         classification_loss = self.loss.caculate_loss(click_pred, conversion_pred, click_conversion_pred, click, conversion)
         loss = classification_loss + vids_loss * self.mi_ratio
         self.log("train/loss", loss, on_epoch=True, on_step=True)
-        self.log("train/vids_loss", vids_loss, on_epoch=True, on_step=True)
-        self.log("train/classification_loss", classification_loss, on_epoch=True, on_step=True)
         
         self.manual_backward(loss, retain_graph=True)
         optimizer.step()
@@ -305,5 +302,5 @@ class CvrAllSpaceMultiTaskLoss(nn.Module):
         loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_cvr, reduction='none')
         loss_ctcvr = torch.mean(loss_ctcvr)
         loss_ctcvr2 = torch.nn.functional.binary_cross_entropy(p_cvr*p_ctr, y_cvr, reduction='mean')
-        loss = self.ctr_loss_proportion*loss_ctr + self.ctr_loss_proportion*loss_cvr + self.ctcvr_loss_proportion*loss_ctcvr + 0.1 * loss_ctcvr2
+        loss = self.ctr_loss_proportion*loss_ctr + self.cvr_loss_proportion*loss_cvr + self.ctcvr_loss_proportion*loss_ctcvr
         return loss
