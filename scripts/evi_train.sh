@@ -1,2 +1,1 @@
-python src/train.py -m data=es experiment=evi_experiment test=True data.debug=False trainer.max_epochs=1  logger=csv
-
+python src/train.py -m data=es experiment=evi_experiment test=True data.debug=True trainer.max_epochs=1 logger=csv

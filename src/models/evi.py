@@ -246,8 +246,6 @@ class EviLitModel(pl.LightningModule):
         classification_loss = self.loss.caculate_loss(click_pred, conversion_pred, teacher_conversion_pred, click, conversion)
         loss = classification_loss + vids_loss * self.mi_ratio
         self.log("train/loss", loss, on_epoch=True, on_step=True)
-        self.log("train/vids_loss", vids_loss, on_epoch=True, on_step=True)
-        self.log("train/classification_loss", classification_loss, on_epoch=True, on_step=True)
         
         self.manual_backward(loss, retain_graph=True)
         optimizer.step()
