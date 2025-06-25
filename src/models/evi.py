@@ -217,7 +217,7 @@ class EviLitModel(pl.LightningModule):
         
         click, conversion, features = self.batch_transform(batch)
         results, feature_embedding, task_fea, tower_fea = self.model(features)
-        click_pred, conversion_pred, click_conversion_pred = results[0], results[1], results[2]
+        click_pred, conversion_pred, teacher_conversion_pred = results[0], results[1], results[2]
         
         if self.info_layer_num != 0.0:
             teacher_layers = tower_fea[2]
@@ -243,9 +243,11 @@ class EviLitModel(pl.LightningModule):
         
         
         # caculate normal loss
-        classification_loss = self.loss.caculate_loss(click_pred, conversion_pred, click_conversion_pred, click, conversion)
+        classification_loss = self.loss.caculate_loss(click_pred, conversion_pred, teacher_conversion_pred, click, conversion)
         loss = classification_loss + vids_loss * self.mi_ratio
         self.log("train/loss", loss, on_epoch=True, on_step=True)
+        self.log("train/vids_loss", vids_loss, on_epoch=True, on_step=True)
+        self.log("train/classification_loss", classification_loss, on_epoch=True, on_step=True)
         
         self.manual_backward(loss, retain_graph=True)
         optimizer.step()
@@ -256,18 +258,18 @@ class EviLitModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):        
         click, conversion, features = self.batch_transform(batch)
         results, feature_embedding, task_fea, tower_fea = self.model(features)
-        click_pred, conversion_pred, click_conversion_pred = results[0], results[1], results[2]
+        click_pred, conversion_pred, teacher_conversion_pred = results[0], results[1], results[2]
         conversion_pred_filter = conversion_pred[click == 1]
         conversion_filter = conversion[click == 1]
         self.val_cvr_auc.update(conversion_pred_filter, conversion_filter)
-        val_loss = self.loss.caculate_loss(click_pred, conversion_pred, click_conversion_pred, click, conversion)
+        val_loss = self.loss.caculate_loss(click_pred, conversion_pred, teacher_conversion_pred, click, conversion)
 
         self.log("val/loss", val_loss, on_epoch=True, on_step=True)
 
     def test_step(self, batch, batch_idx):
         click, conversion, features = self.batch_transform(batch)
         results, feature_embedding, task_fea, tower_fea = self.model(features)
-        click_pred, conversion_pred, click_conversion_pred = results[0], results[1], results[2]
+        click_pred, conversion_pred, teacher_conversion_pred = results[0], results[1], results[2]
         conversion_pred_filter = conversion_pred[click == 1]
         conversion_filter = conversion[click == 1]
         self.cvr_auc.update(conversion_pred_filter, conversion_filter)
@@ -282,6 +284,7 @@ class CvrAllSpaceMultiTaskLoss(nn.Module):
     def __init__(self, 
                  ctr_loss_proportion: float = 1, 
                  cvr_loss_proportion: float = 1, 
+                 cvr_t_loss_proportion: float = 1,
                  ctcvr_loss_proportion: float = 0.1,
                  unclick_space_loss_proportion: float = 0.2,
                  ):
@@ -290,17 +293,18 @@ class CvrAllSpaceMultiTaskLoss(nn.Module):
         self.ctr_loss_proportion =  ctr_loss_proportion
         self.cvr_loss_proprtion = cvr_loss_proportion
         self.ctcvr_loss_proportion = ctcvr_loss_proportion
+        self.cvr_t_loss_proportion = cvr_t_loss_proportion
     
-    def caculate_loss(self, p_ctr, p_cvr, p_ctcvr, y_ctr, y_cvr):
+    def caculate_loss(self, p_ctr, p_cvr, p_cvr_t, y_ctr, y_cvr):
         pctr_clamp = torch.clamp(p_ctr.detach(), 0.001, 1-0.001)
         ips = 1 / pctr_clamp
         non_ips = 1 / (1 - pctr_clamp)
         loss_ctr = torch.nn.functional.binary_cross_entropy(p_ctr, y_ctr, reduction='mean')
         loss_cvr_click = torch.nn.functional.binary_cross_entropy(p_cvr, y_cvr, reduction='none')
-        loss_cvr_unclick = torch.nn.functional.binary_cross_entropy(p_cvr, p_ctcvr.detach(), reduction='none')
+        loss_cvr_unclick = torch.nn.functional.binary_cross_entropy(p_cvr, p_cvr_t.detach(), reduction='none')
         loss_cvr = torch.mean(ips*y_ctr*loss_cvr_click + non_ips*self.unclick_space_loss_proportion*(1-y_ctr)*loss_cvr_unclick)
-        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_ctcvr, y_cvr, reduction='none')
-        loss_ctcvr = torch.mean(loss_ctcvr)
-        loss_ctcvr2 = torch.nn.functional.binary_cross_entropy(p_cvr*p_ctr, y_cvr, reduction='mean')
-        loss = self.ctr_loss_proportion*loss_ctr + self.cvr_loss_proportion*loss_cvr + self.ctcvr_loss_proportion*loss_ctcvr
+        loss_cvr_t = torch.nn.functional.binary_cross_entropy(p_cvr_t, y_cvr, reduction='none')
+        loss_cvr_t = torch.mean(loss_cvr_t)
+        loss_ctcvr = torch.nn.functional.binary_cross_entropy(p_cvr*p_ctr, y_cvr, reduction='mean')
+        loss = self.ctr_loss_proportion*loss_ctr + self.ctr_loss_proportion*loss_cvr + self.cvr_t_loss_proportion*loss_cvr_t + self.ctcvr_loss_proportion * loss_ctcvr
         return loss
